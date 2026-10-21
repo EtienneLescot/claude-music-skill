@@ -88,4 +88,4 @@ Tested end to end on cinematic, lo-fi, techno, ambient, deep house and classical
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). Strudel is AGPL-3.0 and is loaded from a CDN, not redistributed. ACE-Step 1.5 code is MIT; check the licence of its model weights before commercial use. Strudel's sample banks and the General MIDI soundfonts carry their own licences.
+MIT, see [LICENSE](LICENSE). Strudel is AGPL-3.0 and is loaded from a CDN, not redistributed. ACE-Step 1.5 code and model weights are MIT ([model card](https://huggingface.co/ACE-Step/Ace-Step1.5)). Strudel's sample banks and the General MIDI soundfonts carry their own licences.
