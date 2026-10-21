@@ -1,0 +1,17 @@
+{
+  "name": "music-skill",
+  "version": "1.0.0",
+  "description": "Your coding agent composes music in any style as Strudel code, checks it with an offline ear, and ACE-Step 1.5 performs it on your GPU.",
+  "author": {
+    "name": "Etienne Lescot"
+  },
+  "repository": "https://github.com/EtienneLescot/claude-music-skill",
+  "license": "MIT",
+  "keywords": [
+    "music",
+    "composition",
+    "strudel",
+    "ace-step",
+    "audio"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "claude-music-skill",
+  "description": "Music composition for coding agents: the agent writes Strudel code, an offline ear checks it, ACE-Step 1.5 performs it on your GPU.",
+  "owner": {
+    "name": "Etienne Lescot"
+  },
+  "plugins": [
+    {
+      "name": "music-skill",
+      "source": "./",
+      "description": "Your coding agent composes music in any style as Strudel code, checks it with an offline ear, and ACE-Step 1.5 performs it on your GPU."
+    }
+  ]
+}

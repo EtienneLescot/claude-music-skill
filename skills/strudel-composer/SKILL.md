@@ -1,26 +1,47 @@
 ---
 name: strudel-composer
-description: Compose music in any style with Opus, then have it performed locally by an AI model. Opus writes the score as Strudel code (TidalCycles for the browser), checks it with an offline ear (render, spectrogram, metrics), then ACE-Step 1.5 performs it on the local GPU and the takes are finished automatically (dynamics, -14 LUFS). Use whenever the user asks to make, compose, produce or iterate on music, a beat, a loop, a song, a soundtrack or a jingle, in any genre (lo-fi, house, techno, ambient, synthwave, cinematic, drum and bass…), or mentions Strudel.
+description: Compose instrumental music in any style, then have it performed locally by an AI model. You write the score as Strudel code (TidalCycles for the browser), check it with an offline ear (render, spectrogram, metrics), then ACE-Step 1.5 performs it on the local GPU and the takes are finished automatically (dynamics, -14 LUFS). Use whenever the user asks to make, compose, produce or iterate on music, a beat, a loop, a song, a soundtrack or a jingle, in any genre (lo-fi, house, techno, ambient, synthwave, cinematic, classical, drum and bass…), or mentions Strudel.
 ---
 
 # Strudel Composer
 
-**Opus composes, a local model performs.** You write the music as Strudel code: form, harmony, arrangement, mix. That is where the musical intelligence lives. Strudel alone sounds synthetic, so ACE-Step 1.5, running on the user's GPU, then performs the whole mix and gives it an organic timbre while keeping your score. You cannot hear: the ear (`ear.html`) renders, measures and shows you the draft, and the listener picks among the performed takes.
+**You compose, a local model performs.** You write the music as Strudel code: form, harmony, arrangement, mix. That is where the musical intelligence lives. Strudel alone sounds synthetic, so ACE-Step 1.5, running on the user's GPU, then performs the whole mix and gives it an organic timbre while keeping your score. You cannot hear: the ear renders, measures and draws the draft for you, and the listener picks among the performed takes.
+
+Everything runs from a shell. Below, `<skill>` is the folder that holds this file (in Claude Code, `${CLAUDE_SKILL_DIR}`), and commands run from the project root, where tracks live in `tracks/`.
 
 ## Pipeline
 
-1. **Brief**: turn the request, however short, into a detailed brief, and get a go.
+1. **Brief**: turn the request, however short, into a detailed brief, show it, and keep going.
 2. **Write** the score in `tracks/<slug>.strudel`, the brief as its header.
 3. **Check the score with the ear**: render, fix, save the draft WAV.
 4. **Perform** it with `perform.py`: 4 takes by ACE-Step, each finished automatically.
 5. **Deliver**: code, strudel.cc link, the 4 takes. The listener chooses.
 
-### 0. One-time setup
+### 0. Setup (once per machine)
 
-- Copy `ear.html`, `serve.py` and `perform.py` from this skill folder to the project root, next to a `tracks/` folder.
-- Serve the project root: `python serve.py 8765` (static files, plus `PUT` of `.wav` so the page can save renders). In the Claude desktop app, prefer a `.claude/launch.json` entry and `preview_start`.
-- Any browser you can script works for the ear: the built-in browser, Claude in Chrome, or Playwright.
-- ACE-Step 1.5 is installed once per machine: see `README.md` in this folder. Set `ACESTEP_DIR` to its checkout.
+Needs [uv](https://docs.astral.sh/uv/) and network access to the CDNs Strudel loads from. Ask the user before each install below.
+
+**The ear** runs Strudel in a headless Chromium through Playwright, pinned:
+
+```bash
+uv run --with playwright==1.63.0 python -m playwright install chromium
+```
+
+**The performer, ACE-Step 1.5**, needs a GPU it supports (NVIDIA CUDA, Apple Silicon through MLX, AMD ROCm or Intel XPU; only NVIDIA has been tested with this skill) and about 10 GB of disk. If `ACESTEP_DIR` is not set, it is missing. Point `UV_CACHE_DIR` and `HF_HOME` at a large disk first if the system disk is short. The skill was tested at commit `ca1e85f`:
+
+```bash
+git clone https://github.com/ace-step/ACE-Step-1.5 <dir> && cd <dir>
+git checkout ca1e85fe9430179831e6bc6be790c332190a3866
+uv sync
+```
+
+That is the standard install (CUDA, Apple Silicon). AMD and Intel use their own environment: follow ACE-Step's [installation guide](https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/INSTALL.md) for the platform. Then set `ACESTEP_DIR=<dir>` and self-check with the Python of that install, for the standard one:
+
+```bash
+uv run --project "$ACESTEP_DIR" python <skill>/perform.py --check
+```
+
+The models (about 5 GB) download from Hugging Face on the first performance. Without a supported GPU, stop after step 3 and deliver the draft and its strudel.cc link.
 
 ### 1. Brief
 
@@ -36,7 +57,7 @@ A brief has seven parts:
 6. **Constraints**: what to avoid, room for a voice-over, a fixed duration for a video.
 7. **Performer caption**: the ACE-Step prompt, written from this brief, naming instruments and production in order of importance.
 
-Show it to the user in at most eight lines and ask for a go. Corrections cost nothing at this stage and a lot after. Skip the wait only if the user said to go ahead without confirming.
+Show it to the user in at most eight lines, then go straight on: the user wants to hear music, not approve a document, and can interrupt to correct the brief. Stop and ask only when a structural choice is genuinely open and costly to redo (a fixed duration for a video, room for a voice-over, a vocal part).
 
 **Genre conventions** to fill the gaps:
 
@@ -93,30 +114,32 @@ The performer follows your score closely: a better score gives better takes. Spe
 
 ### 3. Check the score with the ear
 
-Navigate to `http://localhost:8765/ear.html?file=tracks/<slug>.strudel` (`cycles` and `section` query parameters override the header). A render takes 10 to 50 s, longer than many tool timeouts, so poll:
-
-```js
-for (let i = 0; i < 40 && !ear.result; i++) await new Promise(r => setTimeout(r, 1000)); document.getElementById('out').textContent
+```bash
+uv run --with playwright==1.63.0 python <skill>/ear.py tracks/<slug>.strudel
 ```
 
-`#out` is the readable report, `ear.result` the JSON. **Take a screenshot and look at the spectrogram.** Fix in this order, at most 3 passes after the first clean render:
+It renders the score offline (10 to 60 s; run it in the background if your tool has a short timeout), prints the report, and writes next to the score `<slug>.ear.txt`, `<slug>.ear.json`, `<slug>.ear.png` and the draft `<slug>.wav`. `--cycles` and `--section` override the header, `--stems` adds each `$:` layer rendered alone.
+
+**Open `<slug>.ear.png` and look at the spectrogram.** Fix in this order, at most 3 passes after the first clean render:
 
 1. `ok: false` with `error`: the code did not evaluate. Fix the syntax or the function name.
 2. `missing`: a sound outside the palette below.
-3. `flags`: each carries its usual fix. If the culprit is unclear, re-render with `&stems=1` (each `$:` layer alone) before touching gains.
+3. `flags`: each carries its usual fix. If the culprit is unclear, re-render with `--stems` before touching gains.
 4. A layer missing from the spectrogram: an rms under -45 dBFS in its stem means it is inaudible.
 5. Musical checklist: sections look different at the section lines, the main section is at least 2 dB above the intro, something new arrives every 8 to 16 cycles, the ending resolves, harmony shows as horizontal lines between 100 Hz and 1 kHz.
 
-A flag can be right for the genre (`dull` in ambient, where the sub drone dominates the energy): leave it and say why. Then save the draft: `await ear.save('/tracks/<slug>.wav')`.
+A flag can be right for the genre (`dull` in ambient, where the sub drone dominates the energy): leave it and say why. The last clean render is the draft the performer gets.
 
 ### 4. Perform
 
+With the Python of the ACE-Step install, for the standard one:
+
 ```bash
-uv run --project "$ACESTEP_DIR" python perform.py tracks/<slug>.wav
+uv run --project "$ACESTEP_DIR" python <skill>/perform.py tracks/<slug>.wav
 ```
 
 - Caption, tempo and key come from the `@caption`, `@bpm` and `@key` header tags of `tracks/<slug>.strudel`; `--caption`, `--bpm` and `--key` override them. Takes land in `tracks/<slug>-takes/`.
-- 4 takes by default (seeds 42, 7, 123, 777), cover of the **whole mix** at strength **0.9**, models loaded once: about 12 s per take on an RTX 4070 Ti, plus 40 s of loading.
+- 4 takes by default (seeds 42, 7, 123, 777), cover of the **whole mix** at strength **0.9**, models loaded once: 12 to 30 s per take on an RTX 4070 Ti, plus 40 s of loading. ACE-Step picks the device itself.
 - Each take gets the draft's bar-by-bar dynamics back (the model flattens them), then a true-peak limiter to -14 LUFS, -1 dBTP. Every take ends at the same loudness, so the listener compares timbre, not level.
 - Run it in the background when the track is long (time grows with duration); it prints one line per take.
 
@@ -173,7 +196,7 @@ These are the habits that separate a track from a loop.
 | `sawtooth` bass, 16th notes | 0.2 to 0.4 | |
 | `sawtooth` lead or motif | 0.6 to 1.3 | short decays read quiet |
 | `piano`, `fmpiano` | 0.5 to 1 | |
-| `steinway`, `vibraphone`, `glockenspiel`, `brakedrum` and other VCSL sounds | 0.5 to 2 | quiet recordings |
+| `vibraphone`, `glockenspiel`, `brakedrum` and other VCSL sounds | 0.5 to 2 | quiet recordings |
 | `white` noise ticks with a short decay | 0.5 to 0.8 | |
 
 - Only kick and bass live below 120 Hz. `.hpf(150)` to `.hpf(250)` on pads, keys and leads.
@@ -195,13 +218,22 @@ Only these sounds load identically in the ear and on strudel.cc. Anything else e
 
 - **Synths**: `sine`, `triangle`, `square`, `sawtooth`, `supersaw`, `pulse`. Noise: `white`, `pink`, `brown`, `crackle`.
 - **Drum machines** with `.bank("<name>")`: `RolandTR808`, `RolandTR909`, `RolandTR707`, `RolandTR606`, `LinnDrum`, `AkaiMPC60`, `OberheimDMX`, `EmuSP12`, `KorgMinipops`, `BossDR110`, `AlesisHR16`, `YamahaRX5`. Sounds: `bd sd hh oh cp rim lt mt ht cr rd cb perc sh` (not every bank has every sound; the ear reports a missing one).
-- **Keys**: `piano`, `steinway`, `kawai`, `fmpiano`, `clavisynth`.
+- **Keys**: `piano` (Salamander, light and reliable), `kawai`, `fmpiano`, `clavisynth`. Avoid `steinway`: each note is a 7 to 8 MB WAV that the browser often fails to fetch, and the layer goes silent.
 - **Mallets and bells**: `vibraphone`, `marimba`, `glockenspiel`, `kalimba`, `balafon`, `tubularbells`, `handbells`, `wineglass`.
 - **Strings and winds**: `harp`, `folkharp`, `strumstick`, `dantranh`, `sax`, `saxello`, `harmonica`, `ocarina`, `didgeridoo`.
 - **Percussion**: `conga`, `bongo`, `cajon`, `darbuka`, `framedrum`, `timpani`, `tambourine`, `cabasa`, `clave`, `cowbell`, `woodblock`, `agogo`, `guiro`, `sleighbells`, `gong`, `triangles`, `oceandrum`.
 - **Texture**: `casio`, `jazz`, `metal`, `east`, `space`, `wind`, `insect`, `crow`.
 
-Never use `gm_*` soundfonts or `samples(...)` calls: the ear does not load them.
+- **General MIDI soundfonts** (129 instruments, the same as strudel.cc; play them with `note()` or `n().scale()`, starting gain 0.6 to 1):
+  - Strings: `gm_violin`, `gm_viola`, `gm_cello`, `gm_contrabass`, `gm_string_ensemble_1`, `gm_string_ensemble_2`, `gm_tremolo_strings`, `gm_pizzicato_strings`, `gm_orchestral_harp`.
+  - Brass and winds: `gm_trumpet`, `gm_trombone`, `gm_french_horn`, `gm_tuba`, `gm_brass_section`, `gm_flute`, `gm_piccolo`, `gm_oboe`, `gm_english_horn`, `gm_clarinet`, `gm_bassoon`, `gm_alto_sax`, `gm_tenor_sax`.
+  - Voices and pads: `gm_choir_aahs`, `gm_voice_oohs`, `gm_synth_choir`, `gm_pad_warm`, `gm_pad_choir`, `gm_pad_halo`, `gm_pad_bowed`.
+  - Keys and guitars: `gm_epiano1`, `gm_epiano2`, `gm_harpsichord`, `gm_church_organ`, `gm_drawbar_organ`, `gm_celesta`, `gm_music_box`, `gm_acoustic_guitar_nylon`, `gm_acoustic_guitar_steel`, `gm_electric_guitar_clean`, `gm_electric_guitar_jazz`, `gm_overdriven_guitar`.
+  - Bass: `gm_acoustic_bass`, `gm_electric_bass_finger`, `gm_fretless_bass`, `gm_synth_bass_1`.
+  - Percussion: `gm_timpani`, `gm_taiko_drum`, `gm_orchestra_hit`, `gm_steel_drums`.
+  - The full list is in `@strudel/soundfonts` (`gm.mjs`). When the brief names a real instrument, use its GM voice in the draft rather than a synth stand-in: the performer follows what it hears.
+
+Never call `samples(...)`: the ear only loads the banks above.
 
 ## Reading the ear
 
@@ -223,7 +255,6 @@ The metrics check the score, not the taste.
 
 ## Ear tools
 
-- `ear.html?compare=/tracks/a.wav,/tracks/b.wav&bpm=110&section=1`: players, spectrograms and `fidelity` of each file against the first (`barLevelCorr`, `onsetF1`, `medianLagMs`, `secondsDiff`, `levelOffsetDb`). Use it to explain a defect the listener heard, never to pick a take.
-- `await ear.renderBuses(code, { drums: [1, 2], keys: [3] }, '/tracks/stems/<slug>')`: instrument buses (`$:` layers in file order), unnormalised, summing back to the mix. `await ear.mix([{ path, gainDb }], outPath)` recombines.
-- `await ear.matchDynamics(draft, take, out, { bpm })`: the browser version of the dynamics step in `perform.py`.
-- `perform.py --finish draft.wav take.wav --bpm 110`: finish an existing take without the GPU. `perform.py --check`: self-check of the loudness meter, dynamics transfer and limiter.
+- `ear.py --compare tracks/a.wav tracks/b.wav --bpm 110`: spectrograms and `fidelity` of each file against the first (`barLevelCorr`, `onsetF1`, `medianLagMs`, `secondsDiff`, `levelOffsetDb`), written to `a.compare.txt` and `a.compare.png`. Use it to explain a defect the listener heard, never to pick a take.
+- `perform.py --finish draft.wav take.wav --bpm 110`: finish an existing take without the GPU. `perform.py --check`: self-check of the loudness meter, dynamics transfer and limiter. A take that times out (ACE-Step aborts after 600 s, usually because another program holds the GPU) is redone alone with `--seeds <seed>`.
+- **Interactive page**, for agents that drive a browser: `python <skill>/serve.py 8765` from the project root, then `http://localhost:8765/ear.html?file=tracks/<slug>.strudel` (add `&stems=1`, or `?compare=...&bpm=...`). In the page, `ear.render(code, opts)`, `ear.save(path)`, `ear.renderBuses(code, { drums: [1, 2] }, dir)` (instrument buses that sum back to the mix), `ear.mix([{ path, gainDb }], out)` and `ear.matchDynamics(draft, take, out, { bpm })`. Renders take longer than many tool timeouts: poll `ear.result` instead of awaiting once.
