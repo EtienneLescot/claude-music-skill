@@ -51,6 +51,8 @@ The settings come from listening tests on the same score:
 |---|---|
 | Cover strength 0.3 to 0.5 | keeps the beat grid, loses the form, sounds generic |
 | **Cover strength 0.9, whole mix** | **preferred** |
+| Starting from noise (`--source 0`) | keeps rhythm and form, rewrites the chords: 60 % of bars keep the draft's chord |
+| **Starting from the draft (`--source 0.5` and `0.85`)** | **68 to 72 % of bars keep the chord; 0.85 keeps synth timbres** |
 | Cover of each instrument bus separately | loses the interplay |
 | MIDI to sampled instruments (Salamander, VSCO, no AI) | real instruments but mechanical playing |
 | Hand-written analog DSP chain on the stems | well measured, still synthetic |
@@ -59,7 +61,7 @@ The settings come from listening tests on the same score:
 
 AI covers keep the timing but flatten the dynamics: a crescendo becomes a wall. Each take gets the draft's bar-by-bar level curve back, then a true-peak limiter brings it to -14 LUFS and -1 dBTP with a hand-written ITU-R BS.1770 meter. Every take ends at the same loudness, so the listener compares sound, not level.
 
-Four takes are made from four seeds, and all four are presented. In testing, the take the listener preferred had the lowest fidelity score of five: the metrics check the score, never the taste.
+Four takes are made, two seeds at two source levels, and all four are presented. In testing, the take the listener preferred had the lowest fidelity score of five: the metrics check the score, never the taste.
 
 ## Making Strudel render offline reliably
 

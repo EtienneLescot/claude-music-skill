@@ -1,12 +1,12 @@
 """Perform a Strudel draft with ACE-Step 1.5 (local), then finish each take: draft dynamics restored, limiter to -14 LUFS.
 
     uv run --project "$ACESTEP_DIR" python perform.py tracks/slug.wav [--caption "..." --bpm 110 --key "A minor"]
-        [--seeds 42 7 123 777] [--strength 0.9] [--lufs -14] [--out DIR]
+        [--seeds 42 7] [--source 0.5 0.85] [--strength 0.9] [--lufs -14] [--out DIR]
     Caption, bpm and key default to the @caption, @bpm and @key header tags of tracks/slug.strudel.
     uv run --project "$ACESTEP_DIR" python perform.py --finish draft.wav take.wav --bpm 110   (no GPU: finishing only)
     uv run --project "$ACESTEP_DIR" python perform.py --check                                  (self-check, no GPU)
 
-Writes DIR/<draft>-s<seed>.wav (finished) and DIR/raw/ (ACE-Step output). ACESTEP_DIR is the ACE-Step 1.5 checkout.
+Writes DIR/<draft>-src<source>-s<seed>.wav (finished) and DIR/raw/ (ACE-Step output). ACESTEP_DIR is the ACE-Step 1.5 checkout.
 """
 import argparse
 import os
@@ -136,20 +136,22 @@ def perform(args):
     dit, llm = AceStepHandler(), LLMHandler()  # the language model is not used by cover
     dit.initialize_service(project_root=root, config_path='acestep-v15-turbo', device='auto')
 
-    for seed in args.seeds:
-        t0 = time.time()
-        params = GenerationParams(task_type='cover', src_audio=str(draft), caption=args.caption,
-                                  audio_cover_strength=args.strength, instrumental=True, lyrics='[Instrumental]',
-                                  bpm=args.bpm, keyscale=args.key, timesignature='4', duration=duration,
-                                  thinking=False, seed=seed)
-        config = GenerationConfig(batch_size=1, use_random_seed=False, seeds=[seed], audio_format='wav')
-        result = generate_music(dit, llm, params, config, save_dir=str(out / 'raw' / f's{seed}'))
-        if not result.success:
-            print(f'seed {seed}: FAILED {result.error}')
-            continue
-        take = out / f'{draft.stem}-s{seed}.wav'
-        level, tp, gr = finish(draft, result.audios[0]['path'], take, args.bpm, args.lufs)
-        print(f'seed {seed}: {time.time() - t0:.1f} s, {level:.1f} LUFS, true peak {tp:.1f} dBTP, limiter {gr:.1f} dB -> {take}')
+    for source in args.source:
+        for seed in args.seeds:
+            t0, name = time.time(), f'src{source:g}-s{seed}'
+            params = GenerationParams(task_type='cover', src_audio=str(draft), caption=args.caption,
+                                      audio_cover_strength=args.strength, cover_noise_strength=source,
+                                      instrumental=True, lyrics='[Instrumental]',
+                                      bpm=args.bpm, keyscale=args.key, timesignature='4', duration=duration,
+                                      thinking=False, seed=seed)
+            config = GenerationConfig(batch_size=1, use_random_seed=False, seeds=[seed], audio_format='wav')
+            result = generate_music(dit, llm, params, config, save_dir=str(out / 'raw' / name))
+            if not result.success:
+                print(f'{name}: FAILED {result.error}')
+                continue
+            take = out / f'{draft.stem}-{name}.wav'
+            level, tp, gr = finish(draft, result.audios[0]['path'], take, args.bpm, args.lufs)
+            print(f'{name}: {time.time() - t0:.1f} s, {level:.1f} LUFS, true peak {tp:.1f} dBTP, limiter {gr:.1f} dB -> {take}')
 
 
 def check():
@@ -175,8 +177,11 @@ if __name__ == '__main__':
     p.add_argument('--caption')
     p.add_argument('--bpm', type=float)
     p.add_argument('--key', default='', help='ACE-Step keyscale, e.g. "A minor" (major or minor only)')
-    p.add_argument('--seeds', type=int, nargs='+', default=[42, 7, 123, 777])
+    p.add_argument('--seeds', type=int, nargs='+', default=[42, 7])
     p.add_argument('--strength', type=float, default=0.9)
+    p.add_argument('--source', type=float, nargs='+', default=[0.5, 0.85],
+                   help='how much of the draft audio itself each take starts from (ACE-Step cover_noise_strength): '
+                        '0 starts from noise and rewrites the harmony; 0.5 reinterprets the sound; 0.85 keeps notes and timbre')
     p.add_argument('--lufs', type=float, default=-14.0)
     p.add_argument('--out')
     p.add_argument('--finish', action='store_true')

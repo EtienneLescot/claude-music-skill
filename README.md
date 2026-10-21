@@ -30,7 +30,7 @@ flowchart LR
 1. **Brief.** A short request is expanded into style, tempo, key, a timeline in seconds, instruments, energy curve and mix, using genre conventions for whatever you left out.
 2. **Score.** One Strudel line per instrument, each gated by a timeline that reads like a DAW arrangement. Drum machines, synths, sample banks and the 128 General MIDI instruments (strings, brass, winds, choir) are available.
 3. **Ear.** `ear.py` renders the score in a headless browser, faster than real time, and flags what it finds: clipping, muddy lows, a static arrangement, a silent layer. The agent fixes the score until it is clean.
-4. **Performance.** `perform.py` hands the draft to ACE-Step 1.5 in cover mode at strength 0.9: the model re-performs the whole mix in the style of the brief.
+4. **Performance.** `perform.py` hands the draft to ACE-Step 1.5 in cover mode: the model re-performs the whole mix in the style of the brief, keeping its harmony, at two levels of fidelity to the draft's sound.
 5. **Finish.** AI covers flatten dynamics, so each take gets the draft's bar-by-bar levels back, then a true-peak limiter to -14 LUFS. All four takes end at the same loudness, and you choose.
 
 The details, and the listening tests behind every setting, are in [docs/how-it-works.md](docs/how-it-works.md).

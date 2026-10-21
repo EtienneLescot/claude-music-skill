@@ -22,7 +22,7 @@ Run `ear.py` with `--stems`. A stem at -120 dB never played; a stem under -45 dB
 ## Performance is slow or times out
 
 - Each take of a 2-minute track takes 15 to 30 s on an RTX 4070 Ti when the GPU is free. Another program using the GPU can make it 10 to 20 times slower, and ACE-Step aborts a take after 600 s.
-- `perform.py` keeps going when one take fails. Redo it alone with `--seeds 42`.
+- `perform.py` keeps going when one take fails. Redo it alone with `--seeds 42 --source 0.5`.
 - Check the GPU with `nvidia-smi`; VRAM close to full means something else holds it.
 
 ## Disk space

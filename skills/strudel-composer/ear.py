@@ -31,6 +31,7 @@ def served(path):
 
 
 def main():
+    sys.stdout.reconfigure(encoding='utf-8')  # the report quotes the score header; Windows consoles default to cp1252
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('files', nargs='+', help='a .strudel score, or the .wav files to compare')
     p.add_argument('--cycles', type=int)

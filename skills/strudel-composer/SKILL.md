@@ -14,7 +14,7 @@ Everything runs from a shell. Below, `<skill>` is the folder that holds this fil
 1. **Brief**: turn the request, however short, into a detailed brief, show it, and keep going.
 2. **Write** the score in `tracks/<slug>.strudel`, the brief as its header.
 3. **Check the score with the ear**: render, fix, save the draft WAV.
-4. **Perform** it with `perform.py`: 4 takes by ACE-Step, each finished automatically.
+4. **Perform** it with `perform.py`: 4 takes by ACE-Step, at two levels of fidelity to the draft, each finished automatically.
 5. **Deliver**: code, strudel.cc link, the 4 takes. The listener chooses.
 
 ### 0. Setup (once per machine)
@@ -139,18 +139,19 @@ uv run --project "$ACESTEP_DIR" python <skill>/perform.py tracks/<slug>.wav
 ```
 
 - Caption, tempo and key come from the `@caption`, `@bpm` and `@key` header tags of `tracks/<slug>.strudel`; `--caption`, `--bpm` and `--key` override them. Takes land in `tracks/<slug>-takes/`.
-- 4 takes by default (seeds 42, 7, 123, 777), cover of the **whole mix** at strength **0.9**, models loaded once: 12 to 30 s per take on an RTX 4070 Ti, plus 40 s of loading. ACE-Step picks the device itself.
+- 4 takes by default: seeds 42 and 7, each at two **source** levels, cover of the **whole mix** at strength **0.9**, models loaded once: 12 to 30 s per take on an RTX 4070 Ti, plus 40 s of loading. ACE-Step picks the device itself.
+- `--source` is how much of the draft audio a take starts from. **0.5** reinterprets the sound and sounds more organic. **0.85** keeps the notes and the timbre, the right end for synth styles such as 80s or synthwave, where the draft's sound is the point. Both keep the score's harmony; the listener picks. `--source 0` starts from noise: it keeps rhythm and form but rewrites the chords, use it only when the user wants the score reinvented.
 - Each take gets the draft's bar-by-bar dynamics back (the model flattens them), then a true-peak limiter to -14 LUFS, -1 dBTP. Every take ends at the same loudness, so the listener compares timbre, not level.
 - Run it in the background when the track is long (time grows with duration); it prints one line per take.
 
-Why these settings, from listening tests: lower strengths (0.3 to 0.5) lose the form and sound generic; covering instrument buses separately loses the interplay; samples and hand-written DSP did not beat the whole-mix cover. ACE-Step tends to darken the mix whatever the caption; naming bright instruments in the caption helps a little.
+Why these settings, from listening tests: at `--source 0` the chords of the take matched the draft in only 60 % of the bars, 68 to 72 % from 0.5 up; lower strengths (0.3 to 0.5) lose the form and sound generic; covering instrument buses separately loses the interplay; samples and hand-written DSP did not beat the whole-mix cover. ACE-Step tends to darken the mix whatever the caption; naming bright instruments in the caption helps a little.
 
 ### 5. Deliver
 
 ```
 **Night Bus** · lo-fi · 84 bpm · A minor · 2:17
 ▶ Score: <strudel.cc share link>
-Takes (all at -14 LUFS): tracks/night-bus-takes/night-bus-s42.wav, -s7, -s123, -s777
+Takes (all at -14 LUFS): tracks/night-bus-takes/night-bus-src0.5-s42.wav, -src0.5-s7, -src0.85-s42, -src0.85-s7
 Form: intro 8 · A 16 · break 8 · A' 8 · outro 8
 Ear (draft): peak -0.5 dBFS · no flags
 Can't judge: which take sounds best. Your ears decide.
@@ -256,5 +257,5 @@ The metrics check the score, not the taste.
 ## Ear tools
 
 - `ear.py --compare tracks/a.wav tracks/b.wav --bpm 110`: spectrograms and `fidelity` of each file against the first (`barLevelCorr`, `onsetF1`, `medianLagMs`, `secondsDiff`, `levelOffsetDb`), written to `a.compare.txt` and `a.compare.png`. Use it to explain a defect the listener heard, never to pick a take.
-- `perform.py --finish draft.wav take.wav --bpm 110`: finish an existing take without the GPU. `perform.py --check`: self-check of the loudness meter, dynamics transfer and limiter. A take that times out (ACE-Step aborts after 600 s, usually because another program holds the GPU) is redone alone with `--seeds <seed>`.
+- `perform.py --finish draft.wav take.wav --bpm 110`: finish an existing take without the GPU. `perform.py --check`: self-check of the loudness meter, dynamics transfer and limiter. A take that times out (ACE-Step aborts after 600 s, usually because another program holds the GPU) is redone alone with `--seeds <seed> --source <level>`.
 - **Interactive page**, for agents that drive a browser: `python <skill>/serve.py 8765` from the project root, then `http://localhost:8765/ear.html?file=tracks/<slug>.strudel` (add `&stems=1`, or `?compare=...&bpm=...`). In the page, `ear.render(code, opts)`, `ear.save(path)`, `ear.renderBuses(code, { drums: [1, 2] }, dir)` (instrument buses that sum back to the mix), `ear.mix([{ path, gainDb }], out)` and `ear.matchDynamics(draft, take, out, { bpm })`. Renders take longer than many tool timeouts: poll `ear.result` instead of awaiting once.
