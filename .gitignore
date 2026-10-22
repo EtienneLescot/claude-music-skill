@@ -2,3 +2,5 @@
 *-takes/
 __pycache__/
 .venv/
+skills/music-studio/discover/
+*.state

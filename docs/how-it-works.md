@@ -1,77 +1,58 @@
 # How it works
 
-A coding agent cannot hear. Everything in this skill is built around that fact: the agent writes music as code, a renderer turns it into audio the agent can measure and look at, and a local model gives the result a human sound.
+## The idea
 
-## 1. Brief
+A 3D object can come from a model trained to output 3D, or from an agent driving Blender. This skill takes the second road for music: the agent does what a composer does with a virtual orchestra (writing, orchestration, articulations, expression, mix), and real recordings of instruments play it. The skill is the studio: an engine, an orchestra, an ear.
 
-A request like « une musique électro un peu deep, avec un crescendo » becomes a seven-part brief before any code:
+## The studio
 
-| Part | Example |
+| File | Role |
 |---|---|
-| Identity | deep house, warm and hypnotic, 122 bpm, F minor, 1:42 |
-| Timeline | intro 0:00 (8 bars) · groove 0:16 (16) · breakdown 0:47 (8) · full groove 1:03 (16) · outro 1:34 (4) |
-| Instruments | soft 909 kick, shuffled hats, sine sub bass, Rhodes chords, airy pad, kalimba motif |
-| Energy | rises through the groove, dips at the breakdown, peaks in the full groove |
-| Mix | warm, round lows, soft top, wide pad |
-| Constraints | no harsh highs, no busy fills |
-| Performer caption | warm deep house, soft punchy kick, shuffled hi-hats, round sub bass, dusty Rhodes chords… |
+| `studio.py` | the engine: parts (notes, CC1 expression, fader automation), rendering through sfizz (SFZ libraries) or DawDreamer (VST3 instruments), mixing with pedalboard, a Dragonfly hall, a BS.1770 loudness meter and a true-peak limiter |
+| `orchestra.py` | the orchestra: a score asks for `('horns', 'long')`; the orchestra picks the source, the seat, the room send and a level calibrated so the same score balances in both modes |
+| `listen.py` | the ear: loudness per section, energy per band, width, each stem's level, a spectrogram with the sections marked |
+| `setup.py` | installs sfizz, Dragonfly and the open samples; captures Discover instruments on the user's machine |
 
-The skill carries genre conventions (tempo ranges, typical forms, core instruments, caption starting points) for deep house, techno, lo-fi, ambient, cinematic, synthwave, drum and bass and hip hop, and fills every gap the request leaves.
+Bricks the skill builds itself, because the libraries ship as raw recordings:
 
-## 2. Score
+- **SFZ from sample names**: VSCO 2 ships WAV files named by note and dynamic; the skill writes the mapping, with dynamic layers crossfading on CC1 so a crescendo changes the timbre (measured on a horn: +11 dB and a brightness from 695 to 1278 Hz).
+- **Decent Sampler to SFZ**: Virtual Playing Orchestra's choirs and basses ship as `.dspreset`.
+- **Legato**: a note starting under a held one skips its attack and fades in.
+- **Sections from soloists**: a part played several times, detuned by a few cents, with its own timing and stereo spread.
+- **Timpani mapped by pitch**: each VSCO drum is measured and mapped to the keys around it.
+- **Discover rolls and swells**: Discover has timpani hits only, so a roll becomes fast hits whose velocity follows the swell.
 
-The brief becomes the header of a [Strudel](https://strudel.cc) file. Each instrument is one `$:` line, gated by a timeline mask that reads like a DAW arrangement:
+## What the listening tests taught
 
-```js
-//                                         intro  groove  break  full   outro
-$: s("bd*4").bank("RolandTR909").mask("<   1!8    1!16    0!8    1!16   0!4>")
-```
+The skill got here by elimination, each step judged by ear:
 
-The score is the source of truth. It plays as-is on strudel.cc, and everything else is derived from it.
-
-## 3. The ear
-
-`ear.py` opens `ear.html` in a headless Chromium, which renders the score offline with Strudel's own engine, faster than real time, and reports:
-
-- a log-frequency spectrogram, gridded by bar, saved as a PNG the agent opens;
-- per-section levels, band energies, brightness, attack density and novelty (does the section change anything?);
-- flags with their usual fix: clipping, too quiet, muddy, dull, static arrangement, silence, mono, missing sound.
-
-It also renders each layer alone (stems) to find the culprit behind a flag, compares renders of the same score, and saves the draft WAV. Agents that drive a browser can also use the page interactively through `serve.py`: instrument buses, mixing, dynamics transfer.
-
-Sounds: Strudel's drum machines, synths and sample banks, plus the 128 General MIDI soundfonts (strings, brass, winds, choir, guitars), the same palette as strudel.cc.
-
-## 4. Performance
-
-Strudel alone sounds synthetic. `perform.py` hands the draft to [ACE-Step 1.5](https://github.com/ace-step/ACE-Step-1.5) on the local GPU, in its `cover` mode: the model re-performs the whole mix in the style of the caption while keeping the score's timing and form.
-
-The settings come from listening tests on the same score:
-
-| Tried | Result |
+| Approach | Verdict |
 |---|---|
-| Cover strength 0.3 to 0.5 | keeps the beat grid, loses the form, sounds generic |
-| **Cover strength 0.9, whole mix** | **preferred** |
-| Starting from noise (`--source 0`) | keeps rhythm and form, rewrites the chords: 60 % of bars keep the draft's chord |
-| **Starting from the draft (`--source 0.5` and `0.85`)** | **68 to 72 % of bars keep the chord; 0.85 keeps synth timbres** |
-| Cover of each instrument bus separately | loses the interplay |
-| MIDI to sampled instruments (Salamander, VSCO, no AI) | real instruments but mechanical playing |
-| Hand-written analog DSP chain on the stems | well measured, still synthetic |
+| Strudel code, then ACE-Step 1.5 re-performing the draft | synthetic, or the harmony rewritten |
+| ACE-Step generating natively from a Claude-written plan | « pas au niveau d'une musique de film » |
+| Open-weight music models in general | independent ranking (Artificial Analysis Music Arena, Oct 2026): the best is 13th on instrumental |
+| A studio with free sample libraries (VSCO 2, VPO) | « beaucoup mieux, on est sur la bonne voie » |
+| More instruments, same writing | « complexifié, mais la couleur générale n'est pas changée » |
+| Writing like a blockbuster: a real theme, octaves and open fifths, a floor, a stop before the climax | correct, but the samples cap it |
+| The same score on BBC Symphony Orchestra Discover | « bien meilleur que tout ce qu'on a fait avant » |
 
-## 5. Finish
+Two lessons hold: **the writing makes the colour** (octaves and fifths, a strong motif, dramatic contrast), and **the recordings set the ceiling** (one hall, real sections). Hence two modes.
 
-AI covers keep the timing but flatten the dynamics: a crescendo becomes a wall. Each take gets the draft's bar-by-bar level curve back, then a true-peak limiter brings it to -14 LUFS and -1 dBTP with a hand-written ITU-R BS.1770 meter. Every take ends at the same loudness, so the listener compares sound, not level.
+## Why Discover is better, and why it is optional
 
-Four takes are made, two seeds at two source levels, and all four are presented. In testing, the take the listener preferred had the lowest fidelity score of five: the metrics check the score, never the taste.
+Discover's sections are recorded together in one hall with one curated mic mix; the open libraries mix solo players, small sections and different rooms. Discover is free but closed: its samples are encrypted, it plays only through Spitfire's plugin, it is installed through an app that requires an account and administrator rights. The skill hosts the plugin headless (DawDreamer) and drives it with keyswitches (strings: 0 long, 1 spiccato, 3 tremolo; brass: 0 long, 1 staccatissimo; percussion: 0 timpani, 1 untuned, with the bass drum on 48, suspended cymbal 53, anvil 57, piatti 71).
 
-## Making Strudel render offline reliably
+Choosing an instrument is not a plugin parameter, and the presets are encrypted, so each user saves eleven instrument states once (`setup.py --capture`). Those states contain Spitfire's patch data; Spitfire's terms (clauses 5 and 8) forbid redistributing patches or any part of a product, so the project ships none.
 
-Strudel's offline export (`renderPatternAudio`, version 1.3) had issues that made renders silently lose notes. `ear.html` works around them:
+## The ear
 
-1. **Quadratic cost.** Every note stays in the audio graph until the end, so 48 bars took 190 s. The ear renders 4-bar chunks with a tail and sums them: 16 s.
-2. **Polyphony cap.** The 128-voice limit applies to every scheduled note offline, dropping whole layers. Raised to 4096.
-3. **Reverb impulses not awaited.** Generated asynchronously, they arrived after rendering started. The ear holds each render until they exist.
-4. **Samples not awaited.** A note whose sample arrived late was dropped. The ear counts downloads and decodes in flight and waits.
-5. **Audio nodes recycled across contexts.** A global node pool reused nodes from a finished chunk in the next one; the connection failed silently. Nodes of a closed context now look garbage-collected to the pool.
-6. **Soundfonts lost at start-up.** Registered alongside the sample banks, they were sometimes overwritten. They are now registered after the banks.
+The agent reads `listen.py`'s numbers and the spectrogram, never the music. What it checks: the contrast between sections in LUFS (the climax 3 to 5 above the theme), the weight (sub and low bands), the brightness, the width, and whether the melody sits 3 to 6 dB above the accompaniment. A hard bus compressor flattens the contrast: the default glue is gentle (-14 dB, 2:1).
 
-Two renders of the same score now agree within 0.5 dB.
+## Next: better open sources
+
+A search of openly licensed material (October 2026) found nothing that matches Discover for string sections or choirs: no open library records full sections together in one hall. The candidates to raise the open mode:
+
+- [Sonatina Symphonic Orchestra 4.0](https://github.com/peastman/sso) (CC Sampling Plus, 2024): the best open string and brass sections, with legato, marcato and tremolo.
+- [VCSL](https://github.com/sgossner/VCSL) (CC0): more percussion layers and round robins.
+- [University of Iowa MIS](https://theremin.music.uiowa.edu/MIS.html): anechoic solo brass and winds in three dynamics, to layer into sections.
+- [3D-MARCo](https://zenodo.org/records/3477602) (CC BY 3.0): impulse responses of a real concert hall from 13 stage positions, to put every instrument in the same room.

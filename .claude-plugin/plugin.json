@@ -1,7 +1,7 @@
 {
   "name": "music-skill",
-  "version": "1.1.0",
-  "description": "Your coding agent composes music in any style as Strudel code, checks it with an offline ear, and ACE-Step 1.5 performs it on your GPU.",
+  "version": "2.0.0",
+  "description": "Your coding agent composes, orchestrates and mixes music as code; a real sampled orchestra plays it, from free open libraries or BBC Symphony Orchestra Discover.",
   "author": {
     "name": "Etienne Lescot"
   },
@@ -10,8 +10,9 @@
   "keywords": [
     "music",
     "composition",
-    "strudel",
-    "ace-step",
+    "orchestra",
+    "film-score",
+    "sfz",
     "audio"
   ]
 }

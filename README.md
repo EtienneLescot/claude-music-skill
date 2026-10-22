@@ -1,47 +1,46 @@
 # claude-music-skill
 
-**Your coding agent composes the music. A model on your GPU performs it.**
+**Your coding agent composes, orchestrates and mixes. A real sampled orchestra plays it.**
 
-An [Agent Skill](https://agentskills.io) that turns a one-line request into a finished instrumental track, in any style:
+An [Agent Skill](https://agentskills.io) that turns a one-line request into a finished instrumental track, film and orchestral first. The agent works the way a composer does with a virtual orchestra, and the way an agent drives Blender rather than a model that outputs a picture:
 
-> une musique électro un peu sympa, un peu deep, avec un crescendo
+- **It writes the score as code**: every note, articulation, swell and fader move, in a Python file you can read and edit.
+- **Real recordings play it**: sampled strings, brass, percussion and choirs, rendered from the command line, mixed in a hall and mastered to -14 LUFS.
+- **An ear checks it**: the agent cannot hear, so the render is measured section by section and drawn as a spectrogram it reads.
 
-becomes a 1:42 deep house track with a filtered intro, a breakdown and a full groove, delivered as a playable score and four mastered takes.
+No GPU, no cloud music service. Works with any agent that reads `SKILL.md`, runs shell commands and opens an image: Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode…
 
-- **The agent writes the music** as [Strudel](https://strudel.cc) code: form, harmony, arrangement, mix. The score plays as-is on strudel.cc.
-- **An offline ear checks it.** The agent cannot hear, so the score is rendered, measured section by section and drawn as a spectrogram the agent reads.
-- **ACE-Step 1.5 performs it** on your own GPU, keeping the score's timing and form while giving it a real sound. No cloud music service is involved.
+## Two sound sources
 
-Works with any agent that reads `SKILL.md` and can run shell commands and open an image: Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, OpenCode…
+| | Open (default) | BBC Symphony Orchestra Discover |
+|---|---|---|
+| What plays | [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) (CC0) and [Virtual Playing Orchestra](http://virtualplaying.com/virtual-playing-orchestra/) (free), through [sfizz](https://sfz.tools/sfizz/) | [Spitfire Audio's free orchestra](https://www.spitfireaudio.com/products/bbc-symphony-orchestra-discover): real sections recorded together at Maida Vale, one hall |
+| Setup | automatic, no account | you get it free with a Spitfire account, then a 2-minute capture |
+| Sound | a good mockup | clearly better |
+
+The same score renders in both: the skill picks Discover when it is installed.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A["Request<br/>« un peu deep,<br/>avec un crescendo »"] --> B["Brief<br/>style, tempo, timeline,<br/>instruments, energy"]
-    B --> C["Score<br/>Strudel code"]
-    C --> D["Ear<br/>offline render,<br/>spectrogram, metrics"]
-    D -- fix --> C
-    D --> E["Performer<br/>ACE-Step 1.5,<br/>4 takes on your GPU"]
-    E --> F["Finish<br/>draft dynamics back,<br/>-14 LUFS"]
-    F --> G["You pick a take"]
+    A["Request<br/>« la musique de pirate,<br/>des Caraïbes »"] --> B["Brief<br/>form, tempo, key,<br/>orchestration, energy"]
+    B --> C["Score<br/>Python: notes,<br/>articulations, swells"]
+    C --> D["Studio<br/>sampled orchestra,<br/>hall, mastering"]
+    D --> E["Ear<br/>loudness per section,<br/>spectrogram, stems"]
+    E -- fix --> C
+    E --> F["Track, stems, score"]
 ```
 
-1. **Brief.** A short request is expanded into style, tempo, key, a timeline in seconds, instruments, energy curve and mix, using genre conventions for whatever you left out.
-2. **Score.** One Strudel line per instrument, each gated by a timeline that reads like a DAW arrangement. Drum machines, synths, sample banks and the 128 General MIDI instruments (strings, brass, winds, choir) are available.
-3. **Ear.** `ear.py` renders the score in a headless browser, faster than real time, and flags what it finds: clipping, muddy lows, a static arrangement, a silent layer. The agent fixes the score until it is clean.
-4. **Performance.** `perform.py` hands the draft to ACE-Step 1.5 in cover mode: the model re-performs the whole mix in the style of the brief, keeping its harmony, at two levels of fidelity to the draft's sound.
-5. **Finish.** AI covers flatten dynamics, so each take gets the draft's bar-by-bar levels back, then a true-peak limiter to -14 LUFS. All four takes end at the same loudness, and you choose.
-
-The details, and the listening tests behind every setting, are in [docs/how-it-works.md](docs/how-it-works.md).
+The details, and the listening tests behind each choice, are in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Install
 
-**Any agent.** Copy the skill folder into your agent's skills folder. Many agents read `.agents/skills/` (per project) or `~/.agents/skills/` (per user); Claude Code reads `~/.claude/skills/`. Check your agent's documentation.
+**Any agent.** Copy the skill folder into your agent's skills folder (many read `.agents/skills/` or `~/.agents/skills/`; Claude Code reads `~/.claude/skills/`):
 
 ```bash
 git clone https://github.com/EtienneLescot/claude-music-skill
-cp -r claude-music-skill/skills/strudel-composer ~/.agents/skills/
+cp -r claude-music-skill/skills/music-studio ~/.agents/skills/
 ```
 
 **Claude Code**, as a plugin:
@@ -50,42 +49,31 @@ cp -r claude-music-skill/skills/strudel-composer ~/.agents/skills/
 /plugin install music-skill --marketplace EtienneLescot/claude-music-skill
 ```
 
-On Claude Code older than 2.1.275, use two steps: `/plugin marketplace add EtienneLescot/claude-music-skill`, then `/plugin install music-skill@claude-music-skill`.
-
-The first time you ask for music, the agent sets up the rest, asking you first: a headless Chromium for the ear, and ACE-Step 1.5 with its models for the performer. See [docs/install.md](docs/install.md) to do it by hand.
+The first time you ask for music, the agent runs the setup, asking you first: sfizz, Dragonfly Reverb and about 1.2 GB of samples, into `~/.music-studio` (or `STUDIO_HOME`). Nothing is installed system-wide. For Discover, see [docs/install.md](docs/install.md).
 
 ## Requirements
 
 | | |
 |---|---|
 | Agent | reads `SKILL.md`, runs shell commands, opens images |
-| Tools | [uv](https://docs.astral.sh/uv/), git |
-| GPU | one supported by ACE-Step 1.5: NVIDIA (CUDA), Apple Silicon (MLX), AMD (ROCm), Intel (XPU). Only NVIDIA has been tested so far, on an RTX 4070 Ti |
-| Disk | about 10 GB for ACE-Step and its models, plus 200 MB for Chromium |
-
-Without a GPU the skill still composes, checks and hands you the score with its strudel.cc link.
+| Tools | [uv](https://docs.astral.sh/uv/) |
+| Disk | about 1.3 GB; 240 MB more for Discover |
+| System | Windows tested. macOS and Linux: install `sfizz` from your package manager if setup finds no `sfizz_render` |
 
 ## What goes over the network
 
-Nothing you compose is sent anywhere. The skill only downloads:
-
-- Strudel and its General MIDI soundfont loader, from the jsDelivr and unpkg CDNs, at each render;
-- Strudel's sample banks and soundfonts, from raw.githubusercontent.com and felixroos.github.io, at each render;
-- Chromium, once, through Playwright;
-- ACE-Step 1.5 from GitHub and its models from Hugging Face, once.
-
-The local server in `serve.py` listens on 127.0.0.1 only and only accepts writes of `.wav` files.
+Nothing you compose leaves your machine. Setup downloads sfizz and Dragonfly Reverb from their GitHub releases, and the samples from the VSCO 2 CE and Virtual Playing Orchestra GitHub repositories. Discover comes from Spitfire, through their app, if you choose it.
 
 ## Docs
 
-- [How it works](docs/how-it-works.md): the pipeline, the ear, the listening tests, and six fixes to Strudel's offline rendering
-- [Install](docs/install.md): manual setup, per platform
-- [Troubleshooting](docs/troubleshooting.md): silent layers, slow takes, timeouts
+- [How it works](docs/how-it-works.md): the studio, the two sources, the ear, what the listening tests taught
+- [Install](docs/install.md): setup, Discover step by step, platforms
+- [Troubleshooting](docs/troubleshooting.md)
 
 ## Status
 
-Tested end to end on cinematic, lo-fi, techno, ambient, deep house and classical, on Windows with an NVIDIA GPU. Captions for other genres are starting points.
+Tested on Windows on orchestral and film music. Electronic styles are the next step. The first version of this skill (Strudel code performed by ACE-Step 1.5) is kept under the tag [v1.1.0](https://github.com/EtienneLescot/claude-music-skill/tree/v1.1.0).
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). Strudel is AGPL-3.0 and is loaded from a CDN, not redistributed. ACE-Step 1.5 code and model weights are MIT ([model card](https://huggingface.co/ACE-Step/Ace-Step1.5)). Strudel's sample banks and the General MIDI soundfonts carry their own licences.
+MIT, see [LICENSE](LICENSE). The music you make is yours. VSCO 2 CE is CC0, Virtual Playing Orchestra free for any use, sfizz BSD-2, Dragonfly Reverb and DawDreamer GPL-3, all downloaded from their sources, not redistributed here. BBC Symphony Orchestra Discover follows Spitfire's terms: music made with it can be released commercially, royalty free; its sounds and patches may not be redistributed or used to train AI, which is why this project ships no Discover data.

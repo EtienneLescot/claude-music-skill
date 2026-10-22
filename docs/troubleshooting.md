@@ -1,38 +1,21 @@
 # Troubleshooting
 
-## A layer is silent
+## Setup
 
-Run `ear.py` with `--stems`. A stem at -120 dB never played; a stem under -45 dBFS is inaudible in the mix.
+- **`sfizz_render not found`**: run `setup.py`; on Linux and macOS install `sfizz` from the package manager.
+- **`no samples in …: run setup.py`**: a download was interrupted; run `setup.py` again, it only fetches what is missing.
+- **GitHub API rate limit** (HTTP 403 during setup): unauthenticated calls are limited to 60 an hour; run setup again later. Sample downloads themselves are not limited.
 
-- `missing` lists sounds outside the palette. Pick one from `SKILL.md`.
-- `steinway` often fails: each note is a 7 to 8 MB WAV. Use `piano`.
-- `[webaudio] error: Failed to fetch`: a sample host refused or timed out. Reload the page and render again.
+## Rendering
 
-## The score does not evaluate
+- **A part is silent**: check its notes fall in the instrument's range (`python orchestra.py` lists the instruments). Discover's timpani sound from MIDI 48; the orchestra shifts them for you.
+- **A Discover part is silent or cut at the start**: the plugin streams its samples in the background; raise the warm-up (`VST(..., warmup=20)`) on a slow disk.
+- **Two parts share a name**: give one `name=` in `orch.part(...)`.
+- **The climax does not stand out**: compare the sections' LUFS in `listen.py`; ease the glue compressor or hold back the earlier section.
 
-- Strudel turns every quoted string into a pattern, so template literals and string concatenation do not build a melody. Write each phrase as a `"<...>"` pattern and chain phrases with `arrange([8, a], [8, b])`.
-- A signal (`sine`, `saw`, `perlin`) is read once per event. On a sound with one event per bar it stays frozen: give it more events (`s("white*16")`, `.segment(16)`).
+## Discover
 
-## The ear does not start
-
-- `Executable doesn't exist`: Chromium is not installed. Run `uv run --with playwright==1.63.0 python -m playwright install chromium`.
-- `page error: ear is not defined`: a CDN import failed. jsDelivr has answered 503 for `@strudel/soundfonts`, which is why the ear loads that file from unpkg. Retry, or check the network.
-- `... is outside the current folder`: run `ear.py` from the project root, the folder that holds `tracks/`.
-
-## Performance is slow or times out
-
-- Each take of a 2-minute track takes 15 to 30 s on an RTX 4070 Ti when the GPU is free. Another program using the GPU can make it 10 to 20 times slower, and ACE-Step aborts a take after 600 s.
-- `perform.py` keeps going when one take fails. Redo it alone with `--seeds 42 --source 0.5`.
-- Check the GPU with `nvidia-smi`; VRAM close to full means something else holds it.
-
-## Disk space
-
-ACE-Step and its models need about 10 GB. Point the caches at a large disk before the first run: `UV_CACHE_DIR` for Python packages, `HF_HOME` for model downloads.
-
-## Self-checks
-
-```bash
-uv run --project "$ACESTEP_DIR" python perform.py --check
-```
-
-checks the loudness meter against BS.1770 reference signals, the dynamics transfer and the limiter ceiling.
+- **The captcha fails**: do the sign-up in your usual browser, not an embedded one.
+- **The Spitfire app does not respond to automation**: it always runs as administrator, and Windows blocks other programs from clicking in it. Do those clicks yourself.
+- **`setup.py --capture` asks again**: the window held another instrument than the one named; choose the right one, click Load, close.
+- **The plugin window does not close on the first click** after loading: click again, or press Alt+F4 with the window focused.

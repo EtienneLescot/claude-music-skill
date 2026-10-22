@@ -1,6 +1,6 @@
 {
   "name": "claude-music-skill",
-  "description": "Music composition for coding agents: the agent writes Strudel code, an offline ear checks it, ACE-Step 1.5 performs it on your GPU.",
+  "description": "Music production for coding agents: the agent writes the score as code, a sampled orchestra renders it, an ear checks it.",
   "owner": {
     "name": "Etienne Lescot"
   },
@@ -8,7 +8,7 @@
     {
       "name": "music-skill",
       "source": "./",
-      "description": "Your coding agent composes music in any style as Strudel code, checks it with an offline ear, and ACE-Step 1.5 performs it on your GPU."
+      "description": "Your coding agent composes, orchestrates and mixes music as code; a real sampled orchestra plays it, from free open libraries or BBC Symphony Orchestra Discover."
     }
   ]
 }

@@ -1,58 +1,43 @@
 # Install
 
-The agent sets everything up on first use, after asking you. To do it by hand:
+## The skill
 
-## 1. The skill
-
-Copy `skills/strudel-composer/` into your agent's skills folder:
-
-| Agent | User folder | Project folder |
-|---|---|---|
-| Many agents (shared location) | `~/.agents/skills/` | `.agents/skills/` |
-| Claude Code | `~/.claude/skills/` | `.claude/skills/` |
-| Cursor | | `.cursor/skills/` |
-| GitHub Copilot | `~/.copilot/skills/` | `.github/skills/` |
-| Gemini CLI | | `.gemini/skills/` |
-| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` |
-
-These paths change between releases: check your agent's documentation. In Claude Code you can install the plugin instead:
-
-```
-/plugin install music-skill --marketplace EtienneLescot/claude-music-skill
-```
-
-On Claude Code older than 2.1.275, use two steps: `/plugin marketplace add EtienneLescot/claude-music-skill`, then `/plugin install music-skill@claude-music-skill`.
-
-## 2. The ear
+Copy `skills/music-studio` into your agent's skills folder, or install the Claude Code plugin (see the README). Then, once, with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv run --with playwright==1.63.0 python -m playwright install chromium
+uv run --python 3.12 --with dawdreamer --with pedalboard --with mido --with numpy --with soundfile --with scipy \
+    python skills/music-studio/setup.py
 ```
 
-Set `PLAYWRIGHT_BROWSERS_PATH` first to put Chromium on another disk.
+It downloads, into `STUDIO_HOME` (default `~/.music-studio`; set it to a large disk if the system disk is short):
 
-## 3. The performer: ACE-Step 1.5
+| What | From | Licence | Size |
+|---|---|---|---|
+| sfizz (`sfizz_render`) | GitHub release | BSD-2 | 8 MB |
+| Dragonfly Reverb | GitHub release | GPL-3 | 40 MB |
+| VSCO 2 Community Edition, the instruments the orchestra uses | GitHub | CC0 | 960 MB |
+| Virtual Playing Orchestra choirs and basses | GitHub | free for any use | 100 MB |
 
-About 10 GB with its models. To keep them off the system disk, set `UV_CACHE_DIR` and `HF_HOME` to a larger disk before installing.
+Files already present are kept, so it can be re-run. It ends with a self-check (loudness meter, limiter, sfizz, hall). `--check` runs the self-check alone.
 
-```bash
-git clone https://github.com/ace-step/ACE-Step-1.5 /path/to/ACE-Step-1.5
-cd /path/to/ACE-Step-1.5
-git checkout ca1e85fe9430179831e6bc6be790c332190a3866   # the commit this skill was tested with
-uv sync
-export ACESTEP_DIR=/path/to/ACE-Step-1.5
-```
+| System | Notes |
+|---|---|
+| Windows | tested |
+| Linux | sfizz's release has no binary for Linux: install `sfizz` from your package manager (it provides `sfizz_render`) |
+| macOS | install `sfizz` (Homebrew or its release); Dragonfly ships as a `.dmg`: install it, then place or link `DragonflyHallReverb.vst3` in `STUDIO_HOME/tools` |
 
-That is the standard install, for NVIDIA (CUDA) and Apple Silicon (MLX). For AMD (ROCm) and Intel (XPU), follow ACE-Step's [installation guide](https://github.com/ace-step/ACE-Step-1.5/blob/main/docs/en/INSTALL.md): they use their own Python environment, and `perform.py` then runs with that environment's Python.
+## BBC Symphony Orchestra Discover (optional, recommended)
 
-On Windows PowerShell, set variables with `$env:ACESTEP_DIR = 'E:\ACE-Step-1.5'`.
+The user does these steps; the agent cannot (account, captcha, administrator app).
 
-## 4. Check
+1. Sign in or create an account at [spitfireaudio.com](https://www.spitfireaudio.com), open the [Discover page](https://www.spitfireaudio.com/products/bbc-symphony-orchestra-discover), click "Sign up to access", accept the mailing list and pass the captcha in your usual browser (embedded browsers often fail it). The order shows at €0.
+2. Install the [Spitfire Audio app](https://www.spitfireaudio.com/pages/product-hub) (it asks for administrator rights), sign in, install BBC Symphony Orchestra Discover (240 MB, any drive).
+3. Capture the instruments:
 
-From the folder that holds the skill:
+   ```bash
+   uv run ... python skills/music-studio/setup.py --capture
+   ```
 
-```bash
-uv run --project "$ACESTEP_DIR" python perform.py --check
-```
+   One plugin window per instrument: open the preset list, choose the instrument named in the terminal, click Load, close the window. Eleven windows, about two minutes; each state is checked and asked again if it holds the wrong instrument. The states stay in `STUDIO_HOME/discover`: Spitfire's licence does not allow sharing them.
 
-prints `check ok`: the loudness meter matches the BS.1770 reference signals, the dynamics transfer and the limiter work. The models download from Hugging Face on the first performance.
+The orchestra then uses Discover automatically. `MUSIC_STUDIO_MODE=open` forces the open libraries; `BBCSO_VST3` points to the plugin if it is not in the default VST3 folder.
