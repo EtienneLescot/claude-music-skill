@@ -27,6 +27,7 @@ HOME = Path(os.environ.get('STUDIO_HOME', Path.home() / '.music-studio'))
 TOOLS = HOME / 'tools'
 SR = 48000
 CEILING_DB = -1.0
+TAIL = 4.0                                     # seconds rendered after a part's last note: its release
 PC = {'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11}
 DYN = ['ppp', 'pp', 'p', 'mp', 'mf', 'f', 'ff', 'fff']
 
@@ -39,12 +40,23 @@ def midi(name):
     return 12 * (int(m[3]) + 1) + PC[m[1]] + {'#': 1, 'b': -1, None: 0}[m[2]]
 
 
+def name(m):
+    """A MIDI number to scientific pitch: 61 -> 'c#4'."""
+    return ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'b'][m % 12] + str(m // 12 - 1)
+
+
 def db(x):
     return 20 * np.log10(np.maximum(x, 1e-12))
 
 
 def undb(d):
     return 10 ** (np.asarray(d) / 20)
+
+
+def scratch():
+    """A temporary folder under STUDIO_HOME, not the system's: renders write large WAVs there."""
+    (HOME / 'tmp').mkdir(parents=True, exist_ok=True)
+    return tempfile.TemporaryDirectory(dir=HOME / 'tmp')
 
 
 def _tool(name):
@@ -282,6 +294,9 @@ def _write_midi(part, path, eighth, rng):
     for tick, _, msg in ev:
         tr.append(msg.copy(time=tick - now))
         now = tick
+    end = round(TAIL / eighth * tpe)                 # sfizz --use-eot stops at the last note event, not at the end of
+    tr.append(mido.Message('note_on', note=0, velocity=1, time=end))   # track: a silent note on key 0 marks the end
+    tr.append(mido.Message('note_off', note=0, velocity=0, time=1))
     mf.save(path)
 
 
@@ -300,12 +315,12 @@ def _render_part(part, eighth, tmp, rng):
         time.sleep(part.sound.warmup)              # sample players stream their samples in the background
         eng.render(1.0)
         p.load_midi(str(mid), clear_previous=True, beats=False, all_events=True)
-        eng.render(max(t + d for t, d, _, _ in part.notes) * eighth + 4)
+        eng.render(max(t + d for t, d, _, _ in part.notes) * eighth + TAIL)
         return np.ascontiguousarray(eng.get_audio().T, dtype=np.float32)
     wav = Path(tmp) / f'{part.name}.wav'
     subprocess.run([str(_tool('sfizz_render.exe' if os.name == 'nt' else 'sfizz_render')), '--sfz', str(part.sound),
-                    '--midi', str(mid), '--wav', str(wav), '--samplerate', str(SR), '--polyphony', '256'],
-                   check=True, capture_output=True)
+                    '--midi', str(mid), '--wav', str(wav), '--samplerate', str(SR), '--polyphony', '256', '--use-eot'],
+                   check=True, capture_output=True)       # without --use-eot a looped sample left on renders forever
     x, sr = sf.read(wav, always_2d=True, dtype='float32')
     assert sr == SR, sr
     return x
@@ -361,7 +376,7 @@ def render(parts, out, eighth, tail=4.0, seed=1, report=True, master_fx=(), glue
     names = [p.name for p in parts]
     assert len(set(names)) == len(names), f'two parts share a name: {names}'
     rng = np.random.default_rng(seed)
-    with tempfile.TemporaryDirectory() as tmp:
+    with scratch() as tmp:
         raw = {p.name: _render_part(p, eighth, tmp, rng) for p in parts}
     n = max(len(x) for x in raw.values()) + int(tail * SR)
     dry, send = np.zeros((n, 2), np.float32), np.zeros((n, 2), np.float32)
@@ -401,7 +416,7 @@ def check():
     assert abs(lufs(sine) + 3.01) < 0.05, lufs(sine)                  # BS.1770: 997 Hz at 0 dBFS, mono
     y, _ = loud(np.hstack([sine, sine]) * 0.1, SR, -14)
     assert abs(lufs(y) + 14) < 0.1 and db(true_peak(y)) <= CEILING_DB + 0.1
-    with tempfile.TemporaryDirectory() as tmp:
+    with scratch() as tmp:
         p = Part('check', synth('check', ampeg_release=0.2)).note(0, 4, 'a4', 100)
         m = render([p], Path(tmp) / 'check.wav', eighth=0.25, report=False)
     assert db(np.abs(m).max()) > -20, 'silent render'                 # a sine at -14 LUFS peaks near -11 dBFS

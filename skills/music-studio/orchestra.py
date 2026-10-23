@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import discover  # noqa: E402
-from studio import HOME, Part, percussion, render, synth, timpani_rolls  # noqa: E402
+from studio import HOME, Part, midi, name, percussion, render, synth, timpani_rolls  # noqa: E402
 
 SSO = HOME / 'sso' / 'Sonatina Symphonic Orchestra'
 VSCO = HOME / 'vsco'
@@ -91,6 +91,46 @@ CATALOG = {
     ('choir', 'basses'): (_choir('basses'), None, 10, 60, 0.3, 0.4, None),
     ('sub', 'long'): (lambda: synth('sub', ampeg_attack=0.03, ampeg_release=0.5), None, -14, None, 0.0, 0.0, None),
 }
+# sounding ranges: what the samples play (outside, silence), then where the instrument sounds best
+# (see references/orchestration.md); untuned percussion and the sub have none
+RANGE = {'violins': ('g3', 'c7', 'd4', 'a6'), 'violins 2': ('g3', 'c7', 'd4', 'a6'), 'violas': ('c3', 'c6', 'c3', 'e5'),
+         'celli': ('c2', 'c#5', 'c2', 'a4'), 'basses': ('c1', 'c4', 'e1', 'g3'), 'flute': ('c4', 'c7', 'g4', 'a6'),
+         'harp': ('c2', 'c7', 'c2', 'c7'), 'horns': ('e2', 'f5', 'a2', 'c5'), 'trumpets': ('e3', 'e6', 'c4', 'a5'),
+         'trombones': ('e2', 'f5', 'e2', 'f4'), 'bass trombones': ('e1', 'g4', 'b1', 'd4'), 'tuba': ('e1', 'd4', 'f1', 'a3'),
+         'timpani': ('c2', 'c3', 'd2', 'c3')}
+CHOIR_RANGE = {'sopranos': ('f4', 'd5'), 'altos': ('c#4', 'f4'), 'tenors': ('d3', 'a3'), 'basses': ('g2', 'd3')}   # tested
+
+
+def ranges(parts):
+    """A line for every part with notes outside what its samples play (silent) or outside where it sounds best."""
+    for p in parts:
+        inst, art = getattr(p, 'instrument', (None, None))
+        if inst == 'choir':
+            lo, hi, best_lo, best_hi = 0, 127, *map(midi, CHOIR_RANGE[art])
+        elif inst in RANGE and art != 'roll':
+            lo, hi, best_lo, best_hi = map(midi, RANGE[inst])
+        else:
+            continue
+        pitches = [n[2] for n in p.notes]
+        silent = [name(m) for m in sorted({m for m in pitches if not lo <= m <= hi})]
+        strained = [name(m) for m in sorted({m for m in pitches if lo <= m <= hi and not best_lo <= m <= best_hi})]
+        if silent:
+            print(f'range: {p.name}: silent, the samples do not play {" ".join(silent)}')
+        if strained:
+            print(f'range: {p.name}: outside where it sounds best: {" ".join(strained)}')
+
+
+def chords(parts):
+    """A line for every one-voice part that is given chords. Sonatina's legato patches play one note at a time: a
+    second note starting under a held one becomes a legato transition, and in a chord one voice is never released."""
+    for p in parts:
+        if not getattr(p, 'mono', False):
+            continue
+        notes = sorted(p.notes)
+        clash = [t2 for (t1, d1, _, _), (t2, _, _, _) in zip(notes, notes[1:]) if t2 < t1 + d1 - 0.25]
+        if clash:
+            print(f'chords: {p.name} plays one note at a time; {len(clash)} note(s) start under a held one, first at '
+                  f'eighth {clash[0]:g}: spread the chord over several parts, or use tremolo or short')
 
 
 class Orchestra:
@@ -116,13 +156,18 @@ class Orchestra:
             p = Part(name, SSO / source if isinstance(source, str) else source(), pan=pan, gain=level, send=send, hpf=hpf)
             p.key = key
             p.needs_cc1 = isinstance(source, str) and articulation == 'long'   # silent without CC1
+            p.mono = isinstance(source, str) and 'Legato' in source             # one note at a time
+        p.instrument = (instrument, articulation)
         for k, v in mix.items():
             setattr(p, k, v)
         self.parts.append(p)
         return p
 
     def render(self, out, eighth, master_fx=(), glue=(-14, 2), **hall):
-        """Render every part made by this orchestra. Discover has its own room, so its hall is shorter."""
+        """Check ranges and chords, then render every part made by this orchestra. Discover has its own room, so its
+        hall is shorter."""
+        ranges(self.parts)
+        chords(self.parts)
         if self.mode == 'discover':
             discover.adapt(self.parts, eighth)
         hall.setdefault('Decay', 2.2 if self.mode == 'discover' else 2.6)

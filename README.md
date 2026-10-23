@@ -4,6 +4,7 @@
 
 An [Agent Skill](https://agentskills.io) that turns a one-line request into a finished instrumental track, film and orchestral first. The agent works the way a composer does with a virtual orchestra, and the way an agent drives Blender rather than a model that outputs a picture:
 
+- **It composes like a professional**: a method (brief, reference styles, motif first, harmony, form, orchestration, critique) and ten style sheets, from epic trailer to cinematic pop.
 - **It writes the score as code**: every note, articulation, swell, sung syllable and fader move, in a Python file you can read and edit.
 - **Real recordings play it**: sampled strings, brass and percussion, and a choir sung by singing-voice models, rendered from the command line, mixed in a hall and mastered to -14 LUFS.
 - **An ear checks it**: the agent cannot hear, so the render is measured section by section and drawn as a spectrogram it reads.

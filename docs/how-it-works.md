@@ -14,10 +14,24 @@ How the project arrived at this design, and what was tried and dropped on the wa
 | `orchestra.py` | the catalog: a score asks for `('horns', 'long')`; the orchestra picks the source, the seat, the room send and a level calibrated so the same score balances in both modes |
 | `sing.py` | the choir: singing-voice models sing the score's syllables, six singers per section, and BigVGAN turns them into sound |
 | `discover.py` | the optional source: BBC Symphony Orchestra Discover hosted headless, its keyswitches, and the capture of its instruments |
+| `theory.py` | roman numerals and chord symbols to notes, so a score writes harmony rather than pitch arithmetic |
+| `references/` | the composer's craft, read step by step: method, melody, harmony, orchestration, critique, musical culture, ten style sheets |
 | `listen.py` | the ear: loudness per section, energy per band, width, each stem's level, a spectrogram with the sections marked |
 | `setup.py` | installs the tools, the samples, the voices and the vocoder; `--capture` saves Discover's instruments |
 | `bigvgan_onnx.py` | converts BigVGAN to ONNX once, at setup |
 | `requirements.txt` | what `uv run --with-requirements` installs for every command |
+
+## The composer's craft
+
+Knowing the tools is not composing. The skill carries a composer's method in `references/`, read by the agent at the step that needs it, so the musical choices are deliberate and the same from one request to the next:
+
+- **Method:** brief, reference styles reduced to their grammar, the motif written first and tested, harmony, a form with an energy target per section, orchestration, a detail pass, critique, delivery. Plus the taste that separates a composer from a sequencer (earn the climax, one idea per section, space, contrast) and the originality rules (styles are free, melodies are not).
+- **Melody, harmony, orchestration:** what makes a hook, how to develop a motif, progressions by emotion, cadences and modulations, ranges measured on this studio's samples, layers, doublings, balance, the idioms that sound real with samples and the ones that sound fake.
+- **Ten style sheets:** epic trailer, adventure, heroic, emotional, wonder, dark suspense, swashbuckler, waltz, march, cinematic pop; each with tempo, harmony, melody, rhythm, orchestra, form, signature devices, pitfalls, and the catalog's instruments for it.
+- **Culture:** what each period and tradition, from Baroque to trailer music and pop, contributes as technique.
+- **Critique:** checks on the score before rendering, targets on the render, and the questions that make the user's listening specific.
+
+Two checks run in code: the orchestra warns before rendering about every note an instrument's samples cannot play (silent) or plays poorly, and `theory.py` turns `I V vi IV` in D into chords, so harmony is written as harmony.
 
 ## The orchestra
 

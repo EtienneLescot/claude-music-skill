@@ -1,6 +1,6 @@
 ---
 name: music-studio
-description: Compose and produce instrumental music, film and orchestral first, the way a composer works with a virtual orchestra. You write the score as Python (notes, articulations, expression curves, sung syllables, mix), the studio renders it through real sampled instruments and a sung choir from the command line, and you check the result with a spectrum and loudness ear. Free open libraries installed by the skill, or BBC Symphony Orchestra Discover when the user has set it up. Use whenever the user asks to make, compose, orchestrate or iterate on music, a soundtrack, a film or game cue, a theme, a jingle or a trailer track.
+description: Compose and produce instrumental music, film and orchestral first, as a professional composer working with a virtual orchestra. You follow a composer's method (brief, reference styles, motif first, harmony, form, orchestration, critique), write the score as Python (notes, articulations, expression curves, sung syllables, mix), the studio renders it through real sampled instruments and a sung choir from the command line, and you judge the result with a spectrum and loudness ear. Free open libraries installed by the skill, or BBC Symphony Orchestra Discover when the user has set it up. Use whenever the user asks to make, compose, orchestrate or iterate on music, a soundtrack, a film or game cue, a theme, a jingle or a trailer track.
 ---
 
 # Music Studio
@@ -12,6 +12,22 @@ Everything runs from a shell, in any coding agent. `<skill>` is this folder (in 
 ```bash
 uv run --python 3.12 --with-requirements <skill>/requirements.txt python <file>
 ```
+
+## The composer's craft
+
+The craft lives in `references/`. Read what the step needs, when it needs it:
+
+| File | Read it |
+|---|---|
+| `references/method.md` | first, for every request: the steps, taste, originality |
+| `references/styles/<style>.md` | at the brief: the style's tempo, harmony, melody, orchestra, form, devices, pitfalls |
+| `references/melody.md` | before writing the hook |
+| `references/harmony.md` | when choosing progressions, cadences, modulations |
+| `references/orchestration.md` | when assigning parts: ranges, layers, doublings, balance, what sounds real |
+| `references/critique.md` | after every render: score checks, render targets, questions for the user |
+| `references/culture.md` | when the request names a period, a composer or a genre outside the style sheets |
+
+Styles: `epic-trailer`, `adventure-fantasy`, `heroic`, `emotional-drama`, `wonder-magic`, `dark-suspense`, `swashbuckler`, `waltz-romance`, `march`, `cinematic-pop`. For a short catchy piece meant to be shared, start from `cinematic-pop`. Rock, pop with a band, electronic and jazz need instruments the studio does not have yet: say so, and offer the closest orchestral style.
 
 ## Sound sources
 
@@ -36,41 +52,46 @@ About 2 GB into `STUDIO_HOME` (default `~/.music-studio`; point it at a large di
 
 ## Pipeline
 
-1. **Brief.** Turn the request into a brief: identity (style, mood in three words, tempo, metre, key, duration), timeline (sections with bars and seconds), orchestration (who plays what, in which register and articulation), energy curve (where it builds, breaks, peaks: 60 to 75 % of the length), mix, constraints. Show it in at most eight lines and go on; ask only when a structural choice is open and costly (a fixed duration for a video, room for a voice-over).
-2. **Score.** Write `tracks/<slug>.py`: constants for harmony and themes, then the parts, then `orch.render(...)`.
-3. **Render** it with the command above.
-4. **Listen.** `python <skill>/listen.py tracks/<slug>.wav --bar <seconds> --sections "intro:1-8,theme:9-24,..."`, then open `tracks/<slug>.png`. Fix, at most three passes.
-5. **Deliver** the WAV (mastered at -14 LUFS), the stems folder and the score. Say what you measured; never say it sounds great.
+1. **Brief** (`method.md`, the style sheet): eight lines at most, shown to the user, then go on. Ask only when a structural choice is open and costly.
+2. **Motif first** (`melody.md`): write the hook alone, two or three candidates, keep the strongest and say why.
+3. **Harmony and form** (`harmony.md`): progression, cadences, modulation, a section table with an energy target per section.
+4. **Score** (`orchestration.md`): write `tracks/<slug>.py`, constants for harmony and themes, then the parts, then `orch.render(...)`. Long articulations play one note at a time: give each note of a chord its own part. Before rendering, the orchestra prints every note outside an instrument's range and every chord given to a one-note part: fix them all.
+5. **Render** it with the command above.
+6. **Judge** (`critique.md`): `python <skill>/listen.py tracks/<slug>.wav --bar <seconds> --sections "intro:1-8,theme:9-24,..."`, open `tracks/<slug>.png`, go through the checks. One change per pass, at most three passes.
+7. **Deliver** the WAV (mastered at -14 LUFS), the stems folder and the score, with what you measured and what you would try next. Present real alternatives side by side at equal loudness. Never say it sounds great: the user's ear decides.
 
 ## Writing a score
 
 ```python
 import sys; sys.path.insert(0, '<skill>')
 from orchestra import Orchestra
+from theory import roman, stack, above
 
-E = 60 / 110 / 3                       # seconds per eighth: 6/8 at dotted quarter = 110
-def B(bar): return (bar - 1) * 6       # first eighth of a bar (6 eighths in 6/8, 8 in 4/4)
+E = 60 / 104 / 2                       # seconds per eighth: 4/4 at 104
+def B(bar): return (bar - 1) * 8       # first eighth of a bar (8 eighths in 4/4, 6 in 6/8)
 
 orch = Orchestra()
 hn = orch.part('horns', 'long')
-bs = orch.part('basses', 'short')
+vc = orch.part('celli', 'short')
 sop = orch.part('choir', 'sopranos')
 
-hn.line(B(9), [('d4', 3), ('a4', 3), ('a4', 2), ('bb4', 1)], vel=110)   # (pitch, eighths), legato
-hn.expr((B(9), 86), (B(10), 110), (B(11) - 0.5, 86))                     # CC1: the phrase swells and falls back
-for i, v in enumerate([120, 62, 78, 114, 62, 78]):
-    bs.note(B(9) + i, 0.6, 'd2', v)                                       # spiccato gallop, accents on the beats
-sop.words(B(9), [('do', 'a4', 3), ('mi', 'a4', 3), ('ne', 'd5', 6)], vel=100)   # (syllable, pitch, eighths)
-sop.expr((B(9), 75), (B(10), 115), (B(11) - 0.5, 75))
+PROG = roman('I V vi IV', 'D')                                           # ['D', 'A', 'Bm', 'G']
+hn.line(B(1), [('a3', 3), ('d4', 1), ('d4', 2), ('e4', 2)], vel=104)     # (pitch, eighths), legato
+hn.expr((B(1), 84), (B(2), 112), (B(3) - 0.5, 84))                       # CC1: the phrase swells and falls back
+for bar, chord in enumerate(PROG, 1):
+    for i, v in enumerate([112, 68, 78, 106, 70, 80, 102, 74]):          # 3+3+2 accents
+        vc.note(B(bar) + i, 0.6, above(chord, 'c2'), v)                  # the chord's root at or above c2
+    sop.words(B(bar), [('a', above(chord, 'f4'), 7.5)], vel=90)         # (syllable, pitch, eighths)
 orch.render('tracks/slug.wav', eighth=E)
 ```
 
 - Time is in eighth notes; pitches in scientific notation (`c4` is middle C) or MIDI numbers.
 - `Part.note(t, dur, pitch, vel)`, `line(t, [(pitch, eighths)], vel, octave)`, `words(t, [(syllable, pitch, eighths)], vel)` for the choir, `hit(t, vel)` for untuned percussion, `expr((t, 0-127), ...)` dynamics of sustained notes and of the choir, `vol((t, dB), ...)` fader automation.
+- `theory.roman(numerals, key)` gives chord symbols; `stack(chord, lo)` the chord in root position; `above(chord, lo, tone)` one chord tone (0 root, 1 third, 2 fifth) at or above a pitch; `transpose(chord, semitones)`.
 - `orch.part(instrument, articulation, name=None, pan=, gain=, send=, hpf=, eq=[(Hz, dB, Q)], fx=[...])`: levels are calibrated per mode; adjust `gain` in dB from the stem report.
 - `orch.render(out, eighth, master_fx=[pedalboard plugins], glue=(threshold, ratio), Decay=seconds)`.
 
-**Instruments** (`python <skill>/orchestra.py` lists them):
+**Instruments** (`python <skill>/orchestra.py` lists them; ranges in `orchestration.md`):
 
 | Family | Instrument: articulations |
 |---|---|
@@ -80,36 +101,7 @@ orch.render('tracks/slug.wav', eighth=E)
 | Choir, sung | `choir`: sopranos, altos, tenors, basses (six singers each) |
 | Open only | `harp`: short · `flute`: long · `sub`: long (sine, a floor under the basses) |
 
-## The choir
-
-Each section is six singers synthesised from two singing-voice models, each singer with their own timing, tuning, vibrato and timbre. It sings romaji syllables (`do`, `mi`, `ne`, `ka`, `ra`, `a`, `o`...), one per note, from `words()`; `cannot sing` means a syllable is not in its dictionary.
-
-- **Write it as film choirs are written:** held chords, homophonic, on open vowels and Latin-like syllables (do-mi-ne, mi-se-re, a-ve), behind the brass. A fast melody sung note by note sounds like an organ.
-- **Ranges tested in tune:** sopranos f4-d5, altos c#4-f4, tenors d3-a3, basses g2-d3; beyond them, check the result.
-- **Cost:** on a GPU a section takes about as long to render as it sings; on a CPU several times longer.
-
-## What makes it sound like a film, not a mockup
-
-Learned from listening tests, in order of effect:
-
-1. **The theme.** A short motif with a strong interval (open fifth, a leap of a sixth), a question ending on the dominant, an answer that climbs to the high point. A stepwise line sounds like library music.
-2. **Octaves and open fifths.** Double the theme in octaves across sections (trombones below, horns, trumpets, violins above); give the low strings and low brass roots and fifths. Full triads in the middle register sound like a video game.
-3. **Fewer, better parts.** More instruments did not change the colour; consistent sources and writing did. In `discover` mode keep everything from Discover where it can.
-4. **A real floor.** Basses, tuba, timpani and bass drum on the downbeats; in `open` mode a `sub` a little under the basses.
-5. **Dramatic contrast.** Hold back the first statement, drop the floor before the climax, a stop on the dominant with a roll and a cymbal swell, the climax about 4 LUFS above the theme. A hard bus compressor flattens this: keep `glue` around (-14, 2).
-6. **Phrase by phrase.** Every sustained phrase gets an `expr` swell; shorts get accented velocities; legato lines for melodies.
-
-## Reading `listen.py`
-
-| Figure | Meaning | Usual target |
-|---|---|---|
-| LUFS per section | the contrast the listener feels | climax 3 to 5 above the theme, breakdown 4 to 8 below |
-| sub+low % | weight | film and trailer 25 to 45 % |
-| high+air % | brightness | orchestral 2 to 10 % |
-| width | side over mid | 0.2 to 0.5 |
-| parts | each stem's level when playing | melody above accompaniment by 3 to 6 dB, choir 6 to 9 dB under the brass |
-
-The figures check the render, never the taste.
+**The choir** sings romaji syllables (`do`, `mi`, `ne`, `ka`, `ra`, `a`, `o`...), one per note, from `words()`. Write it as film choirs are written: held chords on open vowels and Latin-like syllables, behind the brass. On a GPU a section takes about as long to render as it sings; on a CPU several times longer.
 
 ## Licences
 

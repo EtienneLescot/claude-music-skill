@@ -181,6 +181,15 @@
 - **Removed.** Virtual Playing Orchestra, VSCO's strings, brass, harp and flute with the code that turned their sample names into SFZ, sections built from detuned soloists, the 3D-MARCo hall, the sampled choirs and the library switch. VSCO is down to the five percussion sounds Sonatina lacks (57 MB instead of 960). Harp and flute now come from Sonatina, calibrated to the old levels.
 - **Reorganised.** Discover's hosting, keyswitches, adaptations and capture moved to their own module. One catalog holds both modes. Every command runs with `uv run --with-requirements requirements.txt`. Setup downloads about 1.9 GB.
 
+### 13. A composer's harness (2026-10-23)
+
+- **Question.** « est-ce qu'on a des éléments dans cette skills, une méthode, une méthodologie […] pour vraiment donner un harnais hyper professionnel, musicien, compositeur à Claude ? »
+- **Finding.** No. The skill knew its tools; the musical choices behind Horizon, a cinematic-pop test cue (the pop axis, a question-and-answer hook, a 3+3+2 ostinato, a lift a whole step up), came from the model's general knowledge, not from the skill. Its verdict: « c'est pas mal ».
+- **Built.** `references/`: the method with taste and originality rules, melody, harmony, orchestration with ranges measured on the studio's samples, critique, musical culture, and ten style sheets. `theory.py` for roman numerals and chord symbols. A range check before every render.
+- **First catch.** The range check found three horn pitches in Black Flag (g5, a#5, c6) that Sonatina's horns do not play: they had been silent at the climax and in the final hits, unnoticed.
+- **Blind test.** Two fresh agents, no shared context, the same one-line brief (a 60 to 75 s fantasy adventure trailer cue): one with the skill without the harness (v3.0.0), one with it. Labels drawn at random, both masters at -14 LUFS, the key revealed after the verdict. Etienne preferred the one composed with the harness.
+- **Bugs the test exposed.** Sonatina's legato patches play one note at a time: a chord in a long part left a voice that never released, and sfizz rendered it forever (a 50 GB WAV in the system temp folder). Renders now end 4 s after each part's last note, write their temporary files under STUDIO_HOME, and the orchestra warns about chords in one-note parts.
+
 ## Dead ends
 
 | Approach | Why it failed | What it taught |
