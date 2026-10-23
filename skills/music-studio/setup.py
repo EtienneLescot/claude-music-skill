@@ -1,16 +1,24 @@
 """Install the studio into STUDIO_HOME (default ~/.music-studio): no account, no installer, nothing system-wide.
 
     uv run --python 3.12 --with dawdreamer --with pedalboard --with mido --with numpy --with soundfile --with scipy \
-        python setup.py              # tools and samples, about 1.2 GB, then a self-check
+        --with pyyaml --with "onnxruntime-directml; sys_platform == 'win32'" --with "onnxruntime; sys_platform != 'win32'" \
+        python setup.py              # tools, samples, choir voices: about 3 GB, then a self-check
     ... python setup.py --check      # self-check only
     ... python setup.py --capture violins1 horns ...   # Discover: save instrument states on this machine
 
 Downloads: sfizz (BSD-2) and Dragonfly Reverb (GPL-3) from their GitHub releases; the instruments the orchestra uses
-from VSCO 2 Community Edition (CC0) and Virtual Playing Orchestra (free for any use). Files already there are kept.
+from Sonatina Symphonic Orchestra 4.0 (CC Sampling Plus), VSCO 2 Community Edition (CC0) and Virtual Playing Orchestra
+(free for any use); for the choir, two DiffSinger voices from their authors' pages (Hoshino Hanami by LotteV, Namine
+Ritsu by Canon, commercial use allowed) and NVIDIA's BigVGAN v2 vocoder (MIT) from Hugging Face, converted once to
+ONNX with PyTorch in a throwaway uv environment. Files already there are kept.
 BBC Symphony Orchestra Discover is never downloaded here: it comes from Spitfire Audio, with an account."""
 import json
 import os
 import platform
+import posixpath
+import re
+import shutil
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
@@ -34,18 +42,27 @@ VSCO_FOLDERS = [
     'VSCO 1 Percussion/drums/other/ethnic/giant/sticks', 'VSCO 1 Percussion/varMetal/Cymbals/clash',
     'VSCO 1 Percussion/varMetal/Cymbals/susp', 'VSCO 1 Percussion/varMetal/various',
 ]
-VPO_PRESETS = ['choir-MIXED-sustain', 'choir-MALE-normal-mod-wheel', 'bass-SEC-staccato', 'bass-SEC-sustain']
+VPO_PRESETS = ['bass-SEC-staccato', 'bass-SEC-sustain']
+SSO_REPO = 'peastman/sso'
+VOICE_URLS = {'ritsu': 'https://www.canon-voice.com/voice/NamineRitsu_DiffSinger.zip',
+              'hanami': 'https://www.mediafire.com/file/ks3hpb5zldabo3s/'
+                        'Hoshino_Hanami_%257EAIdol%257E_for_DiffSinger_v1.0.zip/file'}
+BIGVGAN_URL = 'https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x/resolve/main/'
+BIGVGAN_FILES = ['LICENSE', 'config.json', 'bigvgan.py', 'activations.py', 'utils.py', 'env.py', 'meldataset.py',
+                 'alias_free_activation/torch/__init__.py', 'alias_free_activation/torch/act.py',
+                 'alias_free_activation/torch/filter.py', 'alias_free_activation/torch/resample.py',
+                 'bigvgan_generator.pt']
 SYSTEM = {'Windows': ['win64'], 'Darwin': ['macos'], 'Linux': ['linux-x86_64']}[platform.system()]
 
 
 def get(url, dest=None):
     req = urllib.request.Request(url, headers={'User-Agent': 'music-studio-setup'})
     with urllib.request.urlopen(req, timeout=120) as r:
-        data = r.read()
-    if dest:
+        if not dest:
+            return r.read()
         Path(dest).parent.mkdir(parents=True, exist_ok=True)
-        Path(dest).write_bytes(data)
-    return data
+        with open(dest, 'wb') as f:
+            shutil.copyfileobj(r, f, 1 << 20)
 
 
 def tree(repo):
@@ -75,6 +92,67 @@ def samples():
             or f['path'].lower().endswith('.wav') and f['path'].split('/')[1:2] and f['path'].split('/')[1] in VPO_PRESETS]
     print(f'Virtual Playing Orchestra: {len(jobs)} files, {sum(j[2] for j in jobs) / 1e6:.0f} MB')
     fetch_all(jobs)
+
+
+def sso():
+    """Sonatina: the patches the orchestra plays, their includes, and only the samples they name."""
+    from orchestra import SSO, SSO_CATALOG
+    branch, files = tree(SSO_REPO)
+    root, size = SSO.name, {f['path']: f['size'] for f in files}
+
+    def url(rel):
+        return f'https://raw.githubusercontent.com/{SSO_REPO}/{branch}/{urllib.parse.quote(f"{root}/{rel}")}'
+
+    samples = set()
+    for patch in sorted({p for p, _, _ in SSO_CATALOG.values()}):
+        base, todo = posixpath.dirname(patch), [patch]
+        while todo:                                    # includes and samples are relative to the patch's folder
+            rel = todo.pop()
+            if not ((SSO / rel).exists() and (SSO / rel).stat().st_size == size[f'{root}/{rel}']):
+                get(url(rel), SSO / rel)
+            text = (SSO / rel).read_text(encoding='utf-8', errors='replace').replace('\\', '/')   # Windows paths too
+            todo += [posixpath.normpath(posixpath.join(base, i)) for i in re.findall(r'#include\s+"([^"]+)"', text)]
+            samples |= {posixpath.normpath(posixpath.join(base, m.strip()))
+                        for m in re.findall(r'sample=(.+?\.(?:wav|flac|ogg))', text, re.I)}
+    jobs = [(url(s), SSO / s, size[f'{root}/{s}']) for s in sorted(samples) if f'{root}/{s}' in size]
+    print(f'Sonatina Symphonic Orchestra: {len(jobs)} samples, {sum(j[2] for j in jobs) / 1e6:.0f} MB')
+    fetch_all(jobs)
+
+
+def voices():
+    """The choir: two DiffSinger voicebanks from their authors' pages, and BigVGAN v2 converted to ONNX."""
+    from sing import BIGVGAN, VOICEBANKS
+    for name, url in VOICE_URLS.items():
+        folder = VOICEBANKS[name]
+        if (folder / 'dsconfig.yaml').exists():
+            print(f'voice {name}: already there')
+            continue
+        if 'mediafire.com' in url:                      # the page holds the file's current link
+            link = re.search(r'href="(https://download[^"]+)"', get(url).decode('utf-8', 'replace'))
+            if not link:
+                print(f'voice {name}: download it from {url} and unzip it into {folder.parent}')
+                continue
+            url = link[1]
+        archive = folder.parent / f'{name}.zip'
+        print(f'voice {name}: downloading')
+        get(url, archive)
+        zipfile.ZipFile(archive).extractall(folder.parent)
+        archive.unlink()
+    if BIGVGAN.exists():
+        print('BigVGAN: already there')
+        return
+    d = BIGVGAN.parent
+    print('BigVGAN v2: downloading (490 MB)')
+    for f in BIGVGAN_FILES:
+        if not (d / f).exists():
+            get(BIGVGAN_URL + f, d / f)
+    (d / 'alias_free_activation' / '__init__.py').touch()
+    uv = shutil.which('uv') or sys.exit('uv not found: it converts BigVGAN to ONNX')
+    print('BigVGAN v2: converting to ONNX, once (PyTorch in a throwaway environment)')
+    pkgs = [a for m in ('torch', 'onnx', 'huggingface_hub', 'librosa', 'matplotlib', 'tqdm') for a in ('--with', m)]
+    subprocess.run([uv, 'run', '--python', '3.12', *pkgs, 'python', '-I',
+                    str(Path(__file__).with_name('bigvgan_onnx.py')), str(d)], check=True)
+    (d / 'bigvgan_generator.pt').unlink()
 
 
 def release_asset(repo, must):
@@ -164,6 +242,9 @@ def report():
     from orchestra import STATES, discover_plugin
     plugin = discover_plugin()
     states = sorted({p.stem for d in STATES if d.exists() for p in d.glob('*.state')})
+    from sing import BIGVGAN, VOICEBANKS
+    have = [n for n, f in VOICEBANKS.items() if (f / 'dsconfig.yaml').exists()]
+    print(f'choir: voices {have or "none"}, BigVGAN {"ready" if BIGVGAN.exists() else "missing"}')
     print(f'BBC Symphony Orchestra Discover: {"installed" if plugin else "not installed"}; states: {states or "none"}')
     if not plugin:
         print('  optional: get it free at spitfireaudio.com (account), install it with the Spitfire Audio app, '
@@ -178,6 +259,8 @@ if __name__ == '__main__':
     if '--check' not in sys.argv:
         tools()
         samples()
+        sso()
+        voices()
     from studio import check
     check()
     report()

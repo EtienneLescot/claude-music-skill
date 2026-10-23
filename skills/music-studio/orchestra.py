@@ -1,13 +1,14 @@
 """The orchestra: one score, two sound sources.
 
-    open      free sample files (VSCO 2 Community Edition, CC0; Virtual Playing Orchestra, free) played by sfizz.
-              Installed by setup.py with no account. Sounds like a good mockup.
+    open      free sample files played by sfizz: Sonatina Symphonic Orchestra 4.0 (CC Sampling Plus) for strings,
+              brass, timpani and drums, VSCO 2 Community Edition (CC0) and Virtual Playing Orchestra (free) for the
+              rest. Installed by setup.py with no account. MUSIC_STUDIO_LIBRARY=vsco plays VSCO's strings and brass.
     discover  BBC Symphony Orchestra Discover (Spitfire Audio, free with an account) hosted by DawDreamer:
               real sections recorded together in one hall. Clearly better; the user installs it once.
 
 A score asks for instruments by name and articulation; the orchestra picks the source, the seat (pan), the room
-send and a level calibrated so a score balances the same way in both modes. Instruments Discover lacks (choirs,
-harp, flute, synths) come from the open libraries in both modes.
+send and a level calibrated so a score balances the same way in both modes. Instruments Discover lacks (harp,
+flute, synths) come from the open libraries in both modes; the choir is sung by DiffSinger voices in both (sing.py).
 
     orch = Orchestra()                         # mode: MUSIC_STUDIO_MODE=open|discover, else discover when installed
     hn = orch.part('horns', 'long')
@@ -85,9 +86,44 @@ CATALOG = {
                        dict(hpf=300), 6, ('percussion', 1, 0), -0.25, 0.3),
     ('harp', 'short'): (lambda: instrument('Strings/Harp', X, 1.5, octave=0), {}, 6, None, -0.35, 0.35),
     ('flute', 'long'): (lambda: instrument('Woodwinds/Flute/susvib', S, 0.5, legato=True), dict(hpf=200), 6, None, -0.1, 0.35),
-    ('choir', 'long'): (lambda: decent(VPO / 'choir-MIXED-sustain.dspreset', 1.2), dict(hpf=150), 1, None, 0.0, 0.45),
-    ('male choir', 'long'): (lambda: decent(VPO / 'choir-MALE-normal-mod-wheel.dspreset', 1.2), dict(hpf=80), 4, None, 0.1, 0.45),
+    ('choir', 'sopranos'): (lambda: _choir('sopranos'), dict(hpf=180), -3, None, -0.3, 0.4),
+    ('choir', 'altos'): (lambda: _choir('altos'), dict(hpf=150), -2, None, -0.1, 0.4),
+    ('choir', 'tenors'): (lambda: _choir('tenors'), dict(hpf=100), 5, None, 0.1, 0.4),
+    ('choir', 'basses'): (lambda: _choir('basses'), dict(hpf=60), 10, None, 0.3, 0.4),
     ('sub', 'long'): (lambda: synth('sub', ampeg_attack=0.03, ampeg_release=0.5), {}, -14, None, 0.0, 0.0),
+}
+# Sonatina Symphonic Orchestra 4.0 (CC Sampling Plus): real sections for strings and brass, the open mode's default
+# (MUSIC_STUDIO_LIBRARY=vsco plays VSCO's instead). Performance patches: long notes take their volume from CC1,
+# shorts from velocity.
+SSO = HOME / 'sso' / 'Sonatina Symphonic Orchestra'
+SSO_CATALOG = {      # (instrument, articulation): (patch, key for untuned percussion, level dB matching VSCO's balance)
+    ('violins', 'long'): ('Strings - Performance/1st Violins Legato.sfz', None, -9),
+    ('violins', 'short'): ('Strings - Performance/1st Violins Staccato.sfz', None, -6),
+    ('violins', 'tremolo'): ('Strings - Performance/1st Violins Tremolo.sfz', None, 8),
+    ('violins 2', 'long'): ('Strings - Performance/2nd Violins Legato.sfz', None, -9),
+    ('violins 2', 'short'): ('Strings - Performance/2nd Violins Staccato.sfz', None, -6),
+    ('violas', 'long'): ('Strings - Performance/Violas Legato.sfz', None, -6),
+    ('violas', 'short'): ('Strings - Performance/Violas Staccato.sfz', None, -8),
+    ('violas', 'tremolo'): ('Strings - Performance/Violas Tremolo.sfz', None, 8),
+    ('celli', 'long'): ('Strings - Performance/Celli Legato.sfz', None, -3),
+    ('celli', 'short'): ('Strings - Performance/Celli Staccato.sfz', None, -3),
+    ('celli', 'tremolo'): ('Strings - Performance/Celli Tremolo.sfz', None, 14),
+    ('basses', 'long'): ('Strings - Performance/Basses Legato.sfz', None, -4),
+    ('basses', 'short'): ('Strings - Performance/Basses Staccato.sfz', None, -4),
+    ('horns', 'long'): ('Brass - Performance/Horns Legato.sfz', None, -2),
+    ('horns', 'short'): ('Brass - Performance/Horns Staccato.sfz', None, -1),
+    ('trumpets', 'long'): ('Brass - Performance/Trumpets Legato.sfz', None, 6),
+    ('trumpets', 'short'): ('Brass - Performance/Trumpets Staccato.sfz', None, 2),
+    ('trombones', 'long'): ('Brass - Performance/Trombones Legato.sfz', None, -2),
+    ('trombones', 'short'): ('Brass - Performance/Trombones Staccato.sfz', None, -5),
+    ('bass trombones', 'long'): ('Brass - Performance/Bass Trombone Solo Sustain.sfz', None, 0),
+    ('bass trombones', 'short'): ('Brass - Performance/Bass Trombone Solo Staccato.sfz', None, -3),
+    ('tuba', 'long'): ('Brass - Performance/Tuba Legato.sfz', None, -6),
+    ('tuba', 'short'): ('Brass - Performance/Tuba Staccato.sfz', None, -9),
+    ('timpani', 'hit'): ('Percussion/Timpani.sfz', None, -7),
+    ('bass drum', 'hit'): ('Percussion/Bass Drum & Snare.sfz', 48, -1),
+    ('snare', 'hit'): ('Percussion/Bass Drum & Snare.sfz', 49, 0),
+    ('cymbals', 'hit'): ('Percussion/Cymbals & Tamtam.sfz', 55, -6),
 }
 # Discover's untuned percussion sits on one keyboard (measured): every hit plays its instrument's key
 DISCOVER_KEY = {'bass drum': 48, 'big drum': 48, 'tenor drum': 50, 'snare': 52, 'cymbals': 71, 'anvil': 57}
@@ -105,6 +141,11 @@ def discover_state(name):
     return next((d / f'{name}.state' for d in STATES if (d / f'{name}.state').exists()), None)
 
 
+def _choir(section):
+    from sing import Choir                             # onnxruntime and the voices only for scores with a choir
+    return Choir(section)
+
+
 def articulations():
     """Every instrument and articulation the catalog knows, for the skill's reference."""
     return sorted(CATALOG)
@@ -117,8 +158,9 @@ class Orchestra:
         if mode == 'discover' and not has:
             sys.exit('Discover mode asked, but BBC Symphony Orchestra Discover or its states are missing: see setup.py')
         self.mode = 'discover' if (mode == 'discover' or (mode == 'auto' and has)) else 'open'
+        self.library = os.environ.get('MUSIC_STUDIO_LIBRARY', 'sso') if self.mode == 'open' else 'discover'
         self.parts, self.rolls, self.swells = [], [], []
-        print(f'orchestra: {self.mode} mode')
+        print(f'orchestra: {self.mode} mode, {self.library} samples')
 
     def part(self, instrument_name, articulation='long', name=None, **mix):
         """A Part for an instrument and articulation, seated and calibrated; mix overrides pan, send, gain…"""
@@ -138,6 +180,12 @@ class Orchestra:
                 self.rolls.append(p)
             if articulation == 'swell':
                 self.swells.append(p)
+        elif self.library == 'sso' and key in SSO_CATALOG:
+            patch, pkey, sgain = SSO_CATALOG[key]
+            p = Part(name, SSO / patch, pan=pan, send=send, gain=sgain, hpf=options.get('hpf'))
+            p.key = pkey
+            if articulation == 'long':
+                p.needs_cc1 = True                          # Performance patches are silent without CC1
         else:
             p = Part(name, source(), pan=pan, send=send, gain=gain, **options)
             if instrument_name in DISCOVER_KEY or articulation == 'swell':
@@ -173,6 +221,9 @@ class Orchestra:
             hall.setdefault('Decay', 2.2)
         else:
             hall.setdefault('Decay', 2.6)
+        for p in self.parts:
+            if getattr(p, 'needs_cc1', False) and not p.curve:
+                p.expr((0, 100))
         return render(self.parts, out, eighth=eighth, master_fx=master_fx, glue=glue, **hall)
 
 
@@ -180,4 +231,4 @@ if __name__ == '__main__':
     print('discover plugin:', discover_plugin() or 'not installed')
     print('discover states:', [p.stem for d in STATES if d.exists() for p in sorted(d.glob('*.state'))] or 'none')
     for i, a in articulations():
-        print(f'  {i:<16} {a:<8} {"discover" if CATALOG[(i, a)][3] else "open only"}')
+        print(f'  {i:<16} {a:<8} {"discover" if CATALOG[(i, a)][3] else "sung, both modes" if i == 'choir' else "open only"}')

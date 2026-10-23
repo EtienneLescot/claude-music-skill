@@ -6,7 +6,8 @@ Dragonfly hall, and masters to -14 LUFS with a true-peak limiter. Time is counte
         python studio.py --check
 
 Most scores use orchestra.py on top of this, which picks the instruments. STUDIO_HOME (default ~/.music-studio)
-holds what setup.py downloads: tools/ (sfizz, Dragonfly), vsco/ and vpo/ (sample libraries)."""
+holds what setup.py downloads: tools/ (sfizz, Dragonfly), sso/, vsco/ and vpo/ (sample libraries), voices/
+(the sung choir, see sing.py)."""
 import os
 import re
 import shutil
@@ -289,7 +290,7 @@ class Part:
     """One instrument track: notes and CC1 expression in eighth notes, plus its place in the mix."""
 
     def __init__(self, name, sound, pan=0.0, gain=0.0, send=0.25, hpf=None, eq=(), comp=None, ensemble=1, fx=()):
-        """sound: an SFZ path or a VST. ensemble: play the part that many times, each copy detuned by a few cents,
+        """sound: an SFZ path, a VST, or a function (part, eighth, rng) -> stereo audio at SR. ensemble: play the part that many times, each copy detuned by a few cents,
         with its own timing and a little spread in the stereo field: a solo sample becomes a section. fx: more
         pedalboard plugins, last in the channel (saturation, for one)."""
         self.name, self.sound, self.pan, self.gain, self.send, self.hpf, self.eq, self.comp = \
@@ -298,6 +299,7 @@ class Part:
         self.notes, self.curve, self.fader = [], [], []
         self.keyswitch = None                  # MIDI note that selects the articulation in a sample library
         self.key = None                        # untuned percussion: every note plays this key
+        self.lyrics = []                       # sung parts: a syllable per note, in order (see words)
 
     def note(self, t, dur, pitch, vel=90):
         self.notes.append((t, dur, midi(pitch), int(np.clip(vel, 1, 127))))
@@ -314,6 +316,16 @@ class Part:
             if p is not None:
                 same = k + 1 < len(seq) and seq[k + 1][0] == p
                 self.note(t, d - 0.1 if same else d + legato, midi(p) + 12 * octave, vel)
+            t += d
+        return t
+
+    def words(self, t, seq, vel=90):
+        """Sung parts: seq [(syllable, pitch, eighths), ...] from t, a syllable None is a rest. Returns the eighth
+        after the last note."""
+        for syl, p, d in seq:
+            if syl:
+                self.note(t, d, p, vel)
+                self.lyrics.append(syl)
             t += d
         return t
 
@@ -378,6 +390,8 @@ def _render_vst(part, eighth, tmp, rng):
 def _render_part(part, eighth, tmp, rng):
     if isinstance(part.sound, VST):
         return _render_vst(part, eighth, tmp, rng)
+    if callable(part.sound):                       # a renderer of its own, such as sung voices: (part, eighth, rng)
+        return part.sound(part, eighth, rng)
     k = part.ensemble
     copies = []
     for i in range(k):
@@ -465,7 +479,8 @@ def render(parts, out, eighth, tail=4.0, seed=1, report=True, master_fx=(), glue
         if p.fader:
             ts, ds = zip(*sorted(p.fader))
             y = y * undb(np.interp(np.arange(n) / SR, np.array(ts) * eighth, ds, left=0, right=0))[:, None]
-        y = _pan(y * undb(p.gain), p.pan).astype(np.float32)
+        y = _pan(y * undb(p.gain), p.pan)
+        y = y.astype(np.float32)
         sf.write(stems_dir / f'{p.name}.wav', y, SR, subtype='PCM_24')
         dry += y
         send += y * p.send

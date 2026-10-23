@@ -5,12 +5,16 @@
 - **`sfizz_render not found`**: run `setup.py`; on Linux and macOS install `sfizz` from the package manager.
 - **`no samples in …: run setup.py`**: a download was interrupted; run `setup.py` again, it only fetches what is missing.
 - **GitHub API rate limit** (HTTP 403 during setup): unauthenticated calls are limited to 60 an hour; run setup again later. Sample downloads themselves are not limited.
+- **`voice hanami: download it from …`**: MediaFire changed its page; download the zip from that link by hand and unzip it where the message says.
+- **The BigVGAN conversion fails**: it needs `uv` on the PATH and about 1 GB for PyTorch in uv's cache; run setup again.
 
 ## Rendering
 
 - **A part is silent**: check its notes fall in the instrument's range (`python orchestra.py` lists the instruments). Discover's timpani sound from MIDI 48; the orchestra shifts them for you.
 - **A Discover part is silent or cut at the start**: the plugin streams its samples in the background; raise the warm-up (`VST(..., warmup=20)`) on a slow disk.
 - **Two parts share a name**: give one `name=` in `orch.part(...)`.
+- **`cannot sing "…"`**: the choir sings romaji syllables (`do`, `mi`, `ka`, `ra`, `a`, `o`…); English words are not in its dictionary.
+- **The choir is slow**: without a GPU (or outside Windows) its models run on the CPU, several times slower than real time.
 - **The climax does not stand out**: compare the sections' LUFS in `listen.py`; ease the glue compressor or hold back the earlier section.
 
 ## Discover
