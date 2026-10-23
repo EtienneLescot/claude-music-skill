@@ -84,6 +84,7 @@ CATALOG = {
     ('cymbals', 'swell'): (_vsco_hits(SWELL, 3, 'swell'), 60, 6, None, 0.15, 0.4, ('percussion', 1, -6)),
     ('anvil', 'hit'): (_vsco_hits(BRAKE, 1.0, 'brake'), 60, 6, 300, -0.25, 0.3, ('percussion', 1, 0)),
     ('harp', 'short'): ('Concert Harp.sfz', None, -11, None, -0.35, 0.35, None),
+    ('piano', 'short'): ('Grand Piano/Grand Piano.sfz', None, -4, None, 0.0, 0.3, None),
     ('flute', 'long'): (WW + 'Flute Solo 1 Legato.sfz', None, -4, 200, -0.1, 0.35, None),
     ('choir', 'sopranos'): (_choir('sopranos'), None, -3, 180, -0.3, 0.4, None),
     ('choir', 'altos'): (_choir('altos'), None, -2, 150, -0.1, 0.4, None),
@@ -95,7 +96,8 @@ CATALOG = {
 # (see references/orchestration.md); untuned percussion and the sub have none
 RANGE = {'violins': ('g3', 'c7', 'd4', 'a6'), 'violins 2': ('g3', 'c7', 'd4', 'a6'), 'violas': ('c3', 'c6', 'c3', 'e5'),
          'celli': ('c2', 'c#5', 'c2', 'a4'), 'basses': ('c1', 'c4', 'e1', 'g3'), 'flute': ('c4', 'c7', 'g4', 'a6'),
-         'harp': ('c2', 'c7', 'c2', 'c7'), 'horns': ('e2', 'f5', 'a2', 'c5'), 'trumpets': ('e3', 'e6', 'c4', 'a5'),
+         'harp': ('c2', 'c7', 'c2', 'c7'), 'piano': ('a0', 'c8', 'a1', 'c7'), 'horns': ('e2', 'f5', 'a2', 'c5'),
+         'trumpets': ('e3', 'e6', 'c4', 'a5'),
          'trombones': ('e2', 'f5', 'e2', 'f4'), 'bass trombones': ('e1', 'g4', 'b1', 'd4'), 'tuba': ('e1', 'd4', 'f1', 'a3'),
          'timpani': ('c2', 'c3', 'd2', 'c3')}
 CHOIR_RANGE = {'sopranos': ('f4', 'd5'), 'altos': ('c#4', 'f4'), 'tenors': ('d3', 'a3'), 'basses': ('g2', 'd3')}   # tested

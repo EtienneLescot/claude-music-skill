@@ -1,6 +1,6 @@
 ---
 name: music-studio
-description: Compose and produce instrumental music, film and orchestral first, as a professional composer working with a virtual orchestra. You follow a composer's method (brief, reference styles, motif first, harmony, form, orchestration, critique), write the score as Python (notes, articulations, expression curves, sung syllables, mix), the studio renders it through real sampled instruments and a sung choir from the command line, and you judge the result with a spectrum and loudness ear. Free open libraries installed by the skill, or BBC Symphony Orchestra Discover when the user has set it up. Use whenever the user asks to make, compose, orchestrate or iterate on music, a soundtrack, a film or game cue, a theme, a jingle or a trailer track.
+description: Compose and produce instrumental music, film and orchestral first, electronic too, as a professional composer working with a virtual orchestra and a synthesizer. You follow a composer's method (brief, reference styles, motif first, harmony, form, orchestration, critique), write the score as Python (notes, articulations, synth patches, filter sweeps, sidechain, expression curves, sung syllables, mix), the studio renders it through real sampled instruments, Surge XT and DSP synthesis, and a sung choir from the command line, and you judge the result with a spectrum and loudness ear. Free open libraries installed by the skill, or BBC Symphony Orchestra Discover when the user has set it up. Use whenever the user asks to make, compose, orchestrate or iterate on music, a soundtrack, an electronic track, a film or game cue, a theme, a jingle or a trailer track.
 ---
 
 # Music Studio
@@ -27,7 +27,7 @@ The craft lives in `references/`. Read what the step needs, when it needs it:
 | `references/critique.md` | after every render: score checks, render targets, questions for the user |
 | `references/culture.md` | when the request names a period, a composer or a genre outside the style sheets |
 
-Styles: `epic-trailer`, `adventure-fantasy`, `heroic`, `emotional-drama`, `wonder-magic`, `dark-suspense`, `swashbuckler`, `waltz-romance`, `march`, `cinematic-pop`. For a short catchy piece meant to be shared, start from `cinematic-pop`. Rock, pop with a band, electronic and jazz need instruments the studio does not have yet: say so, and offer the closest orchestral style.
+Styles: `epic-trailer`, `adventure-fantasy`, `heroic`, `emotional-drama`, `wonder-magic`, `dark-suspense`, `swashbuckler`, `waltz-romance`, `march`, `cinematic-pop`, `electronic`. For a short catchy piece meant to be shared, start from `cinematic-pop`. For an electronic cue (a launch film, techno, synthwave, industrial), read `styles/electronic.md` and build it with `surge.py`: Surge XT factory patches for drums, basses, hooks and pads, synthesized ticks, hats, risers and booms, filter sweeps and sidechain pumping. Never answer an electronic brief with strings and horns, and say at the brief that electronic is the studio's least proven sound (the style sheet says where it stands). Rock, pop with a band and jazz need guitars, an acoustic kit or saxophones the studio does not have yet: say so, and offer the closest orchestral or electronic style.
 
 ## Sound sources
 
@@ -36,7 +36,7 @@ Styles: `epic-trailer`, `adventure-fantasy`, `heroic`, `emotional-drama`, `wonde
 | `open` (default) | Sonatina Symphonic Orchestra 4.0, a few VSCO 2 percussion, through sfizz | automatic, no account |
 | `discover` | BBC Symphony Orchestra Discover (Spitfire Audio) for strings, brass and percussion: real sections recorded together, one hall. It sounds clearly better. | the user's: a Spitfire account, their app, a 2-minute capture |
 
-`Orchestra()` picks `discover` when it is set up, else `open`; `MUSIC_STUDIO_MODE=open|discover` forces one. The same score renders in both. The choir is sung in both modes by singing-voice models (`sing.py`); harp, flute and the `sub` come from the open sources.
+`Orchestra()` picks `discover` when it is set up, else `open`; `MUSIC_STUDIO_MODE=open|discover` forces one. The same score renders in both. The choir is sung in both modes by singing-voice models (`sing.py`); piano, harp, flute and the `sub` come from the open sources, and electronic parts from Surge XT (`surge.py`) in both modes.
 
 ## Setup, once per machine
 
@@ -46,7 +46,7 @@ Ask the user before installing.
 uv run --python 3.12 --with-requirements <skill>/requirements.txt python <skill>/setup.py
 ```
 
-About 2 GB into `STUDIO_HOME` (default `~/.music-studio`; point it at a large disk if the system disk is short), then a self-check. The choir's vocoder is converted once to ONNX with PyTorch in a throwaway uv environment. Windows is tested, and runs the choir on the GPU. On macOS and Linux, install `sfizz` from the package manager if setup finds no `sfizz_render`, and Dragonfly Reverb from its releases page on macOS.
+About 2 GB into `STUDIO_HOME` (default `~/.music-studio`; point it at a large disk if the system disk is short), then a self-check. The choir's vocoder is converted once to ONNX with PyTorch in a throwaway uv environment. Surge XT comes as its plugin alone (about 50 MB on Windows); its factory patches are fetched one by one, a few KB each, when a score names them. Windows is tested, and runs the choir on the GPU. On macOS and Linux, install `sfizz` from the package manager if setup finds no `sfizz_render`, and Dragonfly Reverb from its releases page on macOS.
 
 **Discover, optional.** The user signs up at spitfireaudio.com (free, account and mailing list), installs the Spitfire Audio app and BBC Symphony Orchestra Discover, then runs `setup.py --capture`: eleven plugin windows, about two minutes, each checked. The user does this, not you: the app and the windows are not scriptable, and the captured states hold Spitfire's patch data, which its licence keeps on the user's machine.
 
@@ -57,7 +57,7 @@ About 2 GB into `STUDIO_HOME` (default `~/.music-studio`; point it at a large di
 3. **Harmony and form** (`harmony.md`): progression, cadences, modulation, a section table with an energy target per section.
 4. **Score** (`orchestration.md`): write `tracks/<slug>.py`, constants for harmony and themes, then the parts, then `orch.render(...)`. Long articulations play one note at a time: give each note of a chord its own part. Before rendering, the orchestra prints every note outside an instrument's range and every chord given to a one-note part: fix them all.
 5. **Render** it with the command above.
-6. **Judge** (`critique.md`): `python <skill>/listen.py tracks/<slug>.wav --bar <seconds> --sections "intro:1-8,theme:9-24,..."`, open `tracks/<slug>.png`, go through the checks. One change per pass, at most three passes.
+6. **Judge** (`critique.md`): `python <skill>/listen.py tracks/<slug>.wav --bar <seconds> --sections "intro:1-8,theme:9-24,..."`, open `tracks/<slug>.png`, go through the checks. Give `listen.py` several files to read them against the same sections: the previous version, or a reference the user shares (`ffmpeg -i in.mp4 -vn ref.wav` for a video). One change per pass, at most three passes.
 7. **Deliver** the WAV (mastered at -14 LUFS), the stems folder and the score, with what you measured and what you would try next. Present real alternatives side by side at equal loudness. Never say it sounds great: the user's ear decides.
 
 ## Writing a score
@@ -99,10 +99,11 @@ orch.render('tracks/slug.wav', eighth=E)
 | Brass | `horns`, `trumpets`, `trombones`, `bass trombones`, `tuba`: long, short |
 | Percussion | `timpani`: hit, roll · `bass drum`, `big drum`, `snare`, `tenor drum`, `anvil`: hit · `cymbals`: hit, swell |
 | Choir, sung | `choir`: sopranos, altos, tenors, basses (six singers each) |
-| Open only | `harp`: short · `flute`: long · `sub`: long (sine, a floor under the basses) |
+| Open only | `piano`: short · `harp`: short · `flute`: long · `sub`: long (sine, a floor under the basses) |
+| Electronic (`surge.py`) | `surge('Category/Patch')`: Surge XT kicks, snares, toms, basses, plucks, leads, pads (`python <skill>/surge.py list Basses`) · `synth(tick \| shaker \| hat \| riser \| boom \| swell)` · `chain(sound, kicks=[kick])`: `part.sweep = True` makes its `expr` curve a ladder low-pass (`cut(hz)`), `part.duck = dB` pumps it on the kicks. These are `Part`s made outside `orch.part`: add them to `orch.parts` |
 
 **The choir** sings romaji syllables (`do`, `mi`, `ne`, `ka`, `ra`, `a`, `o`...), one per note, from `words()`. Write it as film choirs are written: held chords on open vowels and Latin-like syllables, behind the brass. On a GPU a section takes about as long to render as it sings; on a CPU several times longer.
 
 ## Licences
 
-The music made is the user's. Sonatina Symphonic Orchestra is CC Sampling Plus, VSCO 2 CE CC0, sfizz BSD-2, Dragonfly and DawDreamer GPL-3, BigVGAN MIT. The choir's voices allow commercial use: Namine Ritsu (Canon) without conditions, Hoshino Hanami ~AI❤dol~ (LotteV) with credit, so tell the user to credit "Hoshino Hanami by LotteV" when they release music with the choir. BBC Symphony Orchestra Discover follows Spitfire's terms: music made with it can be released commercially, royalty free; its sounds and patches cannot be redistributed or used to train AI.
+The music made is the user's. Sonatina Symphonic Orchestra is CC Sampling Plus (Splendid Grand Piano is Public Domain), VSCO 2 CE CC0, sfizz BSD-2, Surge XT, Dragonfly and DawDreamer GPL-3, BigVGAN MIT. The choir's voices allow commercial use: Namine Ritsu (Canon) without conditions, Hoshino Hanami ~AI❤dol~ (LotteV) with credit, so tell the user to credit "Hoshino Hanami by LotteV" when they release music with the choir. BBC Symphony Orchestra Discover follows Spitfire's terms: music made with it can be released commercially, royalty free; its sounds and patches cannot be redistributed or used to train AI.

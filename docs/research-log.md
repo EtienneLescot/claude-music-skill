@@ -28,6 +28,9 @@
 | v1.1.0 | `1934b4b`, tag `v1.1.0` | 2026-10-21 | takes start from the draft audio: 2 seeds × source 0.5 and 0.85 |
 | v2.0.0 | `68ee946`, no tag | 2026-10-22 | `music-studio`: Python score, sampled orchestra, open and Discover modes |
 | v2.1.0 | `6e0adfa`, tag `v2.1.0` | 2026-10-23 | Sonatina by default, sung DiffSinger choir, BigVGAN vocoder |
+| v3.0.0 | `32658a3`, tag `v3.0.0` | 2026-10-23 | rebuilt around what the listening tests kept: Sonatina open mode, Discover optional, sung choir |
+| v3.1.0 | `c90b40e`, tag `v3.1.0` | 2026-10-23 | a composer's harness: method, style sheets, theory, range and chord checks |
+| v3.2.0 | tag `v3.2.0` | 2026-10-23 | electronic through Surge XT (`surge.py`); `listen.py` reads references and each section's loudest moment |
 
 ## Timeline
 
@@ -190,6 +193,16 @@
 - **Blind test.** Two fresh agents, no shared context, the same one-line brief (a 60 to 75 s fantasy adventure trailer cue): one with the skill without the harness (v3.0.0), one with it. Labels drawn at random, both masters at -14 LUFS, the key revealed after the verdict. Etienne preferred the one composed with the harness.
 - **Bugs the test exposed.** Sonatina's legato patches play one note at a time: a chord in a long part left a voice that never released, and sfizz rendered it forever (a 50 GB WAV in the system temp folder). Renders now end 4 s after each part's last note, write their temporary files under STUDIO_HOME, and the orchestra warns about chords in one-note parts.
 
+### 14. Electronic: Launch against Suno (2026-10-23)
+
+- **Brief.** Launch, a 50 s dark electronic cue for a product film: 110 BPM, A Dorian, a 16th-note pulse, a dotted-eighth hook, a build, a peak, a breakdown, one final hit and a ring-out, with timings to the second.
+- **Built.** The skill said electronic was out of reach and to offer an orchestral style. The cue was written anyway: kick, hats, ticks, basses, hook, pad, risers and booms synthesized by hand in numpy (polyBLEP saws, pedalboard's ladder filter), the Sonatina grand as a tape piano, VSCO and Discover hits. Then sidechain pumping, a drone under the intro, a ring-out held to 0:50.
+- **Measured.** Every timing of the brief landed on the grid; the final hit was the loudest moment (momentary -9.7 against -10.2 at the peak). Suno's take on the same prompt, extracted from a video: 108 BPM, the drop 4 s early, no breakdown, a fade instead of the hit, F natural over the Dorian F#, width 0.04, 90 % of its energy under 250 Hz.
+- **Verdict.** « C'est vraiment pas très bon. Hein. La version de Suno est largement meilleure. C'est presque sans comparaison. » Following the brief did not make up for the sound.
+- **Then.** Surge XT factory patches replaced the hand-built kick, snare, toms, basses, hook, pad and drone (`surge.py`). Mids rose from 20 to 28 % of the energy, the limiter from 6.4 to 4.5 dB of reduction. Not judged yet.
+- **Side finding.** Another agent, given the same brief and this skill in parallel, first wrote an orchestral version, as the skill told it to; told it missed the brief, it found Launch's score on the disk and rewrote it under new names. The skill now says how to build electronic, and says it is unproven.
+- **Decision.** `surge.py` joins the skill: Surge XT installed by setup from its stable releases, factory patches fetched one by one, a `.fxp` turned into a plugin state, a pre-roll because Surge drops a note at time 0. `listen.py` reads several files against the same sections and shows each section's loudest 400 ms.
+
 ## Dead ends
 
 | Approach | Why it failed | What it taught |
@@ -199,6 +212,7 @@
 | ACE-Step cover per bus | every bus darkened, piano mids 36 % to 5 %, no interplay | the model needs the whole mix |
 | Strudel exported to SFZ samples, early | quantised, thin low end, judged « pas terrible » | samples need performance programming and a real orchestral source |
 | Hand-written DSP mastering chain | still synthetic underneath | polish cannot fix a synthetic source |
+| Electronic synths written by hand in numpy | « La version de Suno est largement meilleure » | a synth needs a sound designer's patch, not ten lines of DSP |
 | Cover from noise (`--source 0`) | chords rewritten, chroma 0.73 | measure harmony, not only timing |
 | Cover from the draft (source 0.5 to 0.85) | the GM timbre stays | no setting gives both real sound and the score's harmony |
 | Native text-to-music, ACE-Step 1.5 turbo | « pas au niveau d'une musique de film » | open generators rank 11th to 13th at best; the generator is the ceiling |
@@ -291,10 +305,10 @@
 - Spitfire's LABS is moving to Splice. Its terms should be watched.
 
 **Beyond orchestral.**
-- Surge XT is installed and checked, but no track has used it.
+- Surge XT factory patches play Launch's drums, basses, hook and pads; that version waits for an ear. Hats, ticks and risers are still hand-built: no factory patch covers them, and no open drum-sample library is installed.
 - The multi-style proof planned for v1 (lo-fi, techno, ambient, cinematic) was never done in the studio.
 
 **Tooling.**
-- A reference-based check, comparing a mix to a track the user supplies, is still an idea. Matchering is available.
+- `listen.py` now reads a reference next to a render, section by section; Launch was read against Suno's take that way. Matching a mix to it automatically (Matchering) is still an idea.
 - Whether an MCP wrapper is worth it was deferred. The command line is already the lowest level.
 - A blind listening test, open since spec 001, would turn his verdicts into an argument others can check.

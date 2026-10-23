@@ -4,12 +4,13 @@
     ... python setup.py --check                                                 # self-check only
     ... python setup.py --capture [violins1 horns ...]                          # Discover: save instrument states
 
-Downloads, each from its source, never redistributed: sfizz (BSD-2) and Dragonfly Reverb (GPL-3) from their GitHub
-releases; Sonatina Symphonic Orchestra 4.0 (CC Sampling Plus), only the patches the orchestra plays and the samples
-they name; a few percussion samples of VSCO 2 Community Edition (CC0); for the choir, two DiffSinger voices from their
-authors' pages (Namine Ritsu by Canon; Hoshino Hanami by LotteV, credit required) and NVIDIA's BigVGAN v2 vocoder
-(MIT) from Hugging Face, converted once to ONNX with PyTorch in a throwaway uv environment. Files already there are
-kept. BBC Symphony Orchestra Discover is never downloaded here: it comes from Spitfire Audio, with an account."""
+Downloads, each from its source, never redistributed: sfizz (BSD-2), Dragonfly Reverb and the Surge XT plugin
+(GPL-3) from their GitHub releases (Surge's factory patches come one by one when a score names them, see surge.py);
+Sonatina Symphonic Orchestra 4.0 (CC Sampling Plus), only the patches the orchestra plays and the samples they name;
+a few percussion samples of VSCO 2 Community Edition (CC0); for the choir, two DiffSinger voices from their authors'
+pages (Namine Ritsu by Canon; Hoshino Hanami by LotteV, credit required) and NVIDIA's BigVGAN v2 vocoder (MIT) from
+Hugging Face, converted once to ONNX with PyTorch in a throwaway uv environment. Files already there are kept. BBC
+Symphony Orchestra Discover is never downloaded here: it comes from Spitfire Audio, with an account."""
 import json
 import os
 import platform
@@ -28,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import discover  # noqa: E402
+import surge  # noqa: E402
 from orchestra import CATALOG, SSO, VSCO, VSCO_FILES  # noqa: E402
 from sing import BIGVGAN, VOICEBANKS  # noqa: E402
 from studio import HOME, TOOLS, check  # noqa: E402
@@ -42,6 +44,7 @@ BIGVGAN_FILES = ['LICENSE', 'config.json', 'bigvgan.py', 'activations.py', 'util
                  'alias_free_activation/torch/filter.py', 'alias_free_activation/torch/resample.py',
                  'bigvgan_generator.pt']
 SYSTEM = {'Windows': ['win64'], 'Darwin': ['macos'], 'Linux': ['linux-x86_64']}[platform.system()]
+SURGE_SYSTEM = {'Windows': 'win64', 'Darwin': 'macos', 'Linux': 'linux'}[platform.system()]
 
 
 def get(url, dest=None):
@@ -74,16 +77,21 @@ def fetch_all(jobs):
 
 
 def tools():
-    """sfizz_render and Dragonfly Hall from the latest GitHub release built for this system."""
-    for repo, target, hint in (
-            ('sfztools/sfizz', 'sfizz_render', 'install sfizz with your package manager (it provides sfizz_render)'),
-            ('michaelwillis/dragonfly-reverb', 'DragonflyHallReverb.vst3', 'download Dragonfly Reverb for your system')):
+    """sfizz_render, Dragonfly Hall and Surge XT from the latest GitHub release built for this system. Surge's stable
+    releases live in their own repository (the main one only publishes nightlies); its plugin-only archive is enough."""
+    for repo, target, hint, pick in (
+            ('sfztools/sfizz', 'sfizz_render', 'install sfizz with your package manager (it provides sfizz_render)',
+             lambda n: any(s in n for s in SYSTEM)),
+            ('michaelwillis/dragonfly-reverb', 'DragonflyHallReverb.vst3', 'download Dragonfly Reverb for your system',
+             lambda n: any(s in n for s in SYSTEM)),
+            ('surge-synthesizer/releases-xt', 'Surge XT.vst3', 'install Surge XT from surge-synthesizer.github.io',
+             lambda n: n.startswith(f'surge-xt-{SURGE_SYSTEM}-') and 'pluginsonly' in n)):
         exe = target + ('.exe' if target == 'sfizz_render' and os.name == 'nt' else '')
-        if list(TOOLS.rglob(exe)):
+        if list(TOOLS.rglob(exe)) or (target == 'Surge XT.vst3' and surge.plugin()):
             print(f'{target}: already there')
             continue
         rel = json.loads(get(f'https://api.github.com/repos/{repo}/releases/latest'))
-        asset = next((a for a in rel['assets'] if any(s in a['name'].lower() for s in SYSTEM)
+        asset = next((a for a in rel['assets'] if pick(a['name'].lower())
                       and a['name'].lower().endswith(('.zip', '.tar.gz', '.tar.xz'))), None)
         if not asset:
             print(f'{target}: no release for this system; {hint}')
@@ -109,12 +117,17 @@ def sonatina():
         base, todo = posixpath.dirname(patch), [patch]
         while todo:                                    # includes and samples are relative to the patch's folder
             rel = todo.pop()
+            if f'{root}/{rel}' not in size:            # an include written with #define macros: see the piano below
+                continue
             if not ((SSO / rel).exists() and (SSO / rel).stat().st_size == size[f'{root}/{rel}']):
                 get(raw(SSO_REPO, branch, f'{root}/{rel}'), SSO / rel)
             text = (SSO / rel).read_text(encoding='utf-8', errors='replace').replace('\\', '/')   # Windows paths too
             todo += [posixpath.normpath(posixpath.join(base, i)) for i in re.findall(r'#include\s+"([^"]+)"', text)]
             samples |= {posixpath.normpath(posixpath.join(base, m.strip()))
                         for m in re.findall(r'sample=(.+?\.(?:wav|flac|ogg))', text, re.I)}
+    # the Grand Piano names its includes and samples through #define macros ($DIR, $EXT): take its folders whole
+    samples |= {p[len(root) + 1:] for p in size
+                if p.startswith((f'{root}/Grand Piano/', f'{root}/Samples/Grand Piano/'))}
     jobs = [(raw(SSO_REPO, branch, f'{root}/{s}'), SSO / s, size[f'{root}/{s}']) for s in sorted(samples)
             if f'{root}/{s}' in size]
     print(f'Sonatina Symphonic Orchestra: {len(jobs)} samples, {sum(j[2] for j in jobs) / 1e6:.0f} MB')

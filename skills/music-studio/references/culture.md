@@ -28,12 +28,12 @@ What each tradition contributes as technique, so a request like "something Baroq
 
 ## Popular music
 
-The studio does not yet play a drum kit, electric bass, guitars, synthesizers or a lead singer, so these genres can only be borrowed from, inside an orchestral piece. Their grammar still helps:
+The studio does not yet play an acoustic drum kit, electric bass, guitars or a lead singer, so band genres can only be borrowed from, inside an orchestral or electronic piece. Synthesizers it has, through `surge.py` (`styles/electronic.md`). Their grammar still helps:
 
 - **Pop**: verse, pre-chorus, chorus, bridge; the hook in the chorus title; the pop axis progressions; a lift a step up for the last chorus; 90 to 128 BPM.
 - **Rock**: power chords (root and fifth), `I bVII IV` and `I IV V` progressions, riffs as motifs, drums on 2 and 4.
 - **Blues and soul**: the 12-bar blues (`I I I I IV IV I I V IV I V`), dominant 7ths everywhere, the minor pentatonic over major chords.
-- **Electronic**: build and drop, a filter opening as a riser, four on the floor at 120 to 128, sidechain pumping.
+- **Electronic** (`styles/electronic.md`): build and drop, a filter opening as a riser, four on the floor at 105 to 128, sidechain pumping, a 16th-note pulse that never stops.
 - **Hip-hop and lo-fi**: a short looped progression (often `ii V I` or `i bVII bVI`), swing 16ths, 70 to 95 BPM.
 - **Folk and Celtic**: drones, Mixolydian and Dorian, jig (6/8) and reel (4/4) rhythms, ornaments on the melody.
 - **Latin**: clave rhythms, the Andalusian cadence, guitar-like arpeggios (harp can stand in).

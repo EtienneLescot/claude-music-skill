@@ -22,10 +22,13 @@ Run `listen.py` with the sections, then read the numbers against these targets.
 | First seconds | within about 10 LUFS of the climax for a social post or a trailer | the opening is inaudible on a phone; raise the intro's instruments |
 | Melody against accompaniment | 3 to 6 dB above in the stems | lower the accompaniment or move it an octave away |
 | Choir against brass | 6 to 9 dB under at a climax | `gain` on the choir sections |
-| sub+low % | 25 to 45 % for film and trailer | add or remove the floor (basses, tuba, timpani, `sub`) |
-| high+air % | 2 to 10 % orchestral | brighten with the master high shelf, or an instrument in the top octave |
+| sub+low % | 25 to 45 % for film and trailer; electronic has no tested target (Launch's peak 65 to 79 %, Suno's take on the same brief 90 %) | add or remove the floor (basses, tuba, timpani, `sub`; kick and bass in electronic) |
+| high+air % | 2 to 10 % orchestral | brighten with the master high shelf, or an instrument in the top octave (hats in electronic) |
+| Strongest moment | the climax's or the final hit's `loudest` (its loudest 400 ms) above every other section's | thin what comes just before it; make the hit wider in the mids, not only lower |
 | Width | 0.2 to 0.5 | check pans; a hall send too high widens and blurs |
 | Limiter | under 3 dB of gain reduction | the mix is too dense or too bass-heavy at the peak |
+
+**A reference.** When the user shares one (another tool's take, a track they like, a film's audio), read it with `listen.py` next to your render, against the same sections: the loudness shape, the bands and the width calibrate these targets. It is never a melody or an arrangement to copy.
 
 The spectrogram shows what the numbers hide: a gap where a transition should be, a section with no top or no bottom, a final chord cut short.
 
