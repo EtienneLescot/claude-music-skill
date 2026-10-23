@@ -1,13 +1,12 @@
-"""The studio engine. A score is Python that fills Parts with notes, expression curves and fader moves; render()
-plays each part (an SFZ through sfizz, or a VST3 instrument through DawDreamer), mixes them with pedalboard and a
-Dragonfly hall, and masters to -14 LUFS with a true-peak limiter. Time is counted in eighth notes.
+"""The studio engine. A score is Python that fills Parts with notes, syllables, expression curves and fader moves;
+render() plays each part (an SFZ through sfizz, a VST3 instrument through DawDreamer, or a renderer of its own such
+as the sung choir), mixes them with pedalboard and a Dragonfly hall, and masters to -14 LUFS with a true-peak
+limiter. Time is counted in eighth notes.
 
-    uv run --python 3.12 --with dawdreamer --with pedalboard --with mido --with numpy --with soundfile --with scipy \
-        python studio.py --check
+    uv run --python 3.12 --with-requirements requirements.txt python studio.py --check
 
-Most scores use orchestra.py on top of this, which picks the instruments. STUDIO_HOME (default ~/.music-studio)
-holds what setup.py downloads: tools/ (sfizz, Dragonfly), sso/, vsco/ and vpo/ (sample libraries), voices/
-(the sung choir, see sing.py)."""
+Scores use orchestra.py on top of this, which picks and calibrates the instruments. STUDIO_HOME (default
+~/.music-studio) holds what setup.py downloads."""
 import os
 import re
 import shutil
@@ -25,7 +24,7 @@ from numpy.lib.stride_tricks import sliding_window_view
 from scipy import signal
 
 HOME = Path(os.environ.get('STUDIO_HOME', Path.home() / '.music-studio'))
-VSCO, VPO, TOOLS = HOME / 'vsco', HOME / 'vpo', HOME / 'tools'
+TOOLS = HOME / 'tools'
 SR = 48000
 CEILING_DB = -1.0
 PC = {'c': 0, 'd': 2, 'e': 4, 'f': 5, 'g': 7, 'a': 9, 'b': 11}
@@ -117,97 +116,15 @@ def loud(x, sr=SR, target=-14.0):
     return y, -db(g.min())
 
 
-# ---------------------------------------------------------------- instruments: SFZ written from sample files
+# ---------------------------------------------------------------- SFZ written from sample files
 
 def _dyn_rank(tok):
     return int(tok[1:]) if tok[0] == 'v' else DYN.index(tok)
 
 
-def instrument(folder, mode, release=0.4, octave=1, legato=False):
-    """SFZ for a VSCO folder of <name>_<note><oct>_<v1|mf>[_rr2].wav. mode 'sus': the dynamic layers crossfade on
-    CC1, the expression curve; 'short': layers on velocity, round robins alternate. VSCO names octaves one lower
-    than scientific pitch (A2 sounds at 220 Hz), hence octave=1; the harp is named in scientific pitch (octave=0).
-    legato: a note that starts while another is held skips its attack and fades in, so a line connects
-    (for melodies; chords would lose their attacks)."""
-    d = VSCO / folder
-    out = d / f'_studio_{mode}{"_legato" if legato else ""}.sfz'
-    zones = {}
-    for f in sorted(d.glob('*.wav')):
-        toks = f.stem.split('_')
-        i, note = next((i, t) for i, t in enumerate(toks) if re.fullmatch(r'[A-G]#?-?\d', t))
-        dyn = next((t for t in toks[i + 1:] if re.fullmatch(r'v\d|[pmf]{1,3}', t)), 'v1')
-        zones.setdefault(midi(note.lower()) + 12 * octave, {}).setdefault(dyn, []).append(f.name)
-    assert zones, f'no samples in {d}: run setup.py'
-    keys = sorted(zones)
-    lines = []
-    for k, key in enumerate(keys):
-        lo = keys[k - 1] + (key - keys[k - 1]) // 2 + 1 if k else key - 12
-        hi = key + (keys[k + 1] - key) // 2 if k < len(keys) - 1 else key + 12
-        dyns = sorted(zones[key], key=_dyn_rank)
-        n = len(dyns)
-        for j, dyn in enumerate(dyns):
-            if mode == 'sus':
-                c = [round(127 * i / (n - 1)) for i in range(n)] if n > 1 else [0]
-                layer = (f' xfin_locc1={c[j - 1]} xfin_hicc1={c[j]}' if j else '') + \
-                        (f' xfout_locc1={c[j]} xfout_hicc1={c[j + 1]}' if j < n - 1 else '')
-                env = f' ampeg_attack=0.03 ampeg_release={release} amp_veltrack=30'
-            else:
-                layer = f' lovel={1 + 127 * j // n} hivel={127 * (j + 1) // n}'
-                env = f' loop_mode=one_shot ampeg_release={release} amp_veltrack=60'
-            rrs = zones[key][dyn]
-            for r, name in enumerate(rrs):
-                seq = f' seq_length={len(rrs)} seq_position={r + 1}' if len(rrs) > 1 else ''
-                region = f'<region> sample={name} pitch_keycenter={key} lokey={lo} hikey={hi}{layer}{env}{seq}'
-                if legato and mode == 'sus':
-                    lines += [region + ' trigger=first',
-                              region.replace(' ampeg_attack=0.03', ' ampeg_attack=0.09') + ' trigger=legato offset=4000']
-                else:
-                    lines.append(region)
-    out.write_text('\n'.join(lines) + '\n')
-    return out
-
-
-def decent(preset, release=None):
-    """SFZ from a Decent Sampler preset (Virtual Playing Orchestra and Pianobook libraries ship in that format):
-    each <sample> keeps its key range, root, velocity range, volume and tuning; each <group> its envelope.
-    Parsed with regular expressions: some presets repeat an attribute, which Decent Sampler accepts and XML does not."""
-    src = Path(preset)
-    out = src.with_name(f'_studio_{src.stem}.sfz')
-
-    def num(el, k, default=None):
-        v = el.get(k)
-        return default if v is None else float(v.replace('dB', ''))
-
-    def gain(v):
-        return float(v.replace('dB', '')) if v.endswith('dB') else 20 * np.log10(max(float(v), 1e-6))
-
-    lines, g, env, gdb = [], {}, '', 0.0
-    for tag, attrs in re.findall(r'<(group|sample)\b([^>]*)>', src.read_text(encoding='utf-8', errors='replace')):
-        a = dict(re.findall(r'(\w+)="([^"]*)"', attrs))
-        if tag == 'group':
-            g, gdb = a, gain(a.get('volume', '0dB'))
-            sus = num(g, 'sustain', 1.0)
-            env = (f' ampeg_attack={num(g, "attack", 0.005)} ampeg_decay={num(g, "decay", 1.0)}'
-                   f' ampeg_sustain={100 * sus if sus <= 1 else sus} ampeg_release={release or num(g, "release", 0.3)}')
-            continue
-        path = a.get('path').replace('\\', '/')
-        assert (src.parent / path).exists(), f'missing sample {path}: run setup.py'
-        vel = f' lovel={a.get("loVel")} hivel={a.get("hiVel")}' if a.get('loVel') else \
-              f' lovel={g.get("loVel")} hivel={g.get("hiVel")}' if g.get('loVel') else ''
-        pos = a.get('seqPosition') or g.get('seqPosition')
-        seq = f' seq_length={g.get("seqLength") or a.get("seqLength")} seq_position={pos}' if pos else ''
-        loop = ' loop_mode=loop_continuous' if 'loop' in path.lower() else ''
-        lines.append(f'<region> sample={path} pitch_keycenter={a.get("rootNote")} lokey={a.get("loNote")} '
-                     f'hikey={a.get("hiNote")} tune={round(float(a.get("tuning", 0)) * 100)} '
-                     f'volume={gdb + gain(a.get("volume", "0dB")):.1f}{vel}{seq}{loop}{env}')
-    assert lines, f'no samples in {src}'
-    out.write_text('\n'.join(lines) + '\n')
-    return out
-
-
 def synth(name, wave='sine', **opcodes):
     """An sfizz oscillator as an instrument: sine, saw, square, triangle or noise, shaped by SFZ opcodes
-    (ampeg_*, pitcheg_*, fil_type, cutoff…). For sub bass and electronic layers."""
+    (ampeg_*, pitcheg_*, fil_type, cutoff...). For a sub bass under the orchestra."""
     d = HOME / 'synth'
     d.mkdir(parents=True, exist_ok=True)
     out = d / f'_studio_{name}.sfz'
@@ -216,9 +133,10 @@ def synth(name, wave='sine', **opcodes):
     return out
 
 
-def percussion(folder, pattern, release=1.0, key=60, name=None):
-    """SFZ for unpitched hits: files matching pattern, layered on velocity by their dynamic marking (pp…fff)."""
-    d = VSCO / folder
+def percussion(folder, pattern, release=1.0, name=None):
+    """SFZ for unpitched hits on key 60: files matching pattern, layered on velocity by their dynamic marking
+    (pp...fff or v1, v2...), round robins alternating."""
+    d = Path(folder)
     out = d / f'_studio_{name or pattern.replace("*", "")}.sfz'
     groups = {}
     for f in sorted(d.glob(pattern)):
@@ -230,8 +148,9 @@ def percussion(folder, pattern, release=1.0, key=60, name=None):
     for j, dyn in enumerate(dyns):
         for r, f in enumerate(groups[dyn]):
             seq = f' seq_length={len(groups[dyn])} seq_position={r + 1}' if len(groups[dyn]) > 1 else ''
-            lines.append(f'<region> sample={f} key={key} pitch_keycenter={key} lovel={1 + 127 * j // len(dyns)} '
-                         f'hivel={127 * (j + 1) // len(dyns)} loop_mode=one_shot ampeg_release={release} amp_veltrack=50{seq}')
+            lines.append(f'<region> sample={f} key=60 pitch_keycenter=60 lovel={1 + 127 * j // len(dyns)} '
+                         f'hivel={127 * (j + 1) // len(dyns)} loop_mode=one_shot ampeg_release={release} '
+                         f'amp_veltrack=50{seq}')
     out.write_text('\n'.join(lines) + '\n')
     return out
 
@@ -246,16 +165,15 @@ def _f0(path, fmin=40, fmax=400):
     return f[band][np.argmax(s[band])]
 
 
-def timpani(folder='Percussion/Timpani', kind='Hit', release=1.5, veltrack=50):
-    """Each VSCO timpani is one drum at one pitch: measure it, then map it to the keys around it.
-    Hits ring out whatever the note length; rolls (24 s samples) last as long as the note."""
-    mode = 'loop_mode=one_shot ' if kind == 'Hit' else ''
-    d = VSCO / folder
-    out = d / f'_studio_{kind.lower()}.sfz'
+def timpani_rolls(folder, release=1.0, veltrack=80):
+    """SFZ for timpani rolls recorded one drum at one pitch (VSCO 2): each drum is measured, then mapped to the keys
+    around it. A roll lasts as long as its note."""
+    d = Path(folder)
+    out = d / '_studio_roll.sfz'
     drums = {}
-    for f in sorted(d.glob(f'Timpani*_{kind}_*.wav')):
+    for f in sorted(d.glob('Timpani*_Roll_*.wav')):
         drums.setdefault(f.stem.split('_')[0], []).append(f)
-    assert drums, f'no Timpani*_{kind}_*.wav in {d}: run setup.py'
+    assert drums, f'no timpani rolls in {d}: run setup.py'
     pitched = sorted((69 + 12 * np.log2(_f0(fs[0]) / 440), fs) for fs in drums.values())
     lines = []
     for k, (p, fs) in enumerate(pitched):
@@ -271,7 +189,7 @@ def timpani(folder='Percussion/Timpani', kind='Hit', release=1.5, veltrack=50):
                 seq = f' seq_length={len(groups[dyn])} seq_position={r + 1}' if len(groups[dyn]) > 1 else ''
                 lines.append(f'<region> sample={name} pitch_keycenter={key} tune={cents} lokey={lo} hikey={hi} '
                              f'lovel={1 + 127 * j // len(dyns)} hivel={127 * (j + 1) // len(dyns)} '
-                             f'{mode}ampeg_release={release} amp_veltrack={veltrack}{seq}')
+                             f'ampeg_release={release} amp_veltrack={veltrack}{seq}')
     out.write_text('\n'.join(lines) + '\n')
     return out
 
@@ -287,19 +205,16 @@ class VST:
 # ---------------------------------------------------------------- parts
 
 class Part:
-    """One instrument track: notes and CC1 expression in eighth notes, plus its place in the mix."""
+    """One instrument track: notes, syllables and CC1 expression in eighth notes, plus its place in the mix."""
 
-    def __init__(self, name, sound, pan=0.0, gain=0.0, send=0.25, hpf=None, eq=(), comp=None, ensemble=1, fx=()):
-        """sound: an SFZ path, a VST, or a function (part, eighth, rng) -> stereo audio at SR. ensemble: play the part that many times, each copy detuned by a few cents,
-        with its own timing and a little spread in the stereo field: a solo sample becomes a section. fx: more
-        pedalboard plugins, last in the channel (saturation, for one)."""
-        self.name, self.sound, self.pan, self.gain, self.send, self.hpf, self.eq, self.comp = \
-            name, sound, pan, gain, send, hpf, list(eq), comp
-        self.ensemble, self.fx = ensemble, list(fx)
-        self.notes, self.curve, self.fader = [], [], []
+    def __init__(self, name, sound, pan=0.0, gain=0.0, send=0.25, hpf=None, eq=(), fx=()):
+        """sound: an SFZ path, a VST, or a function (part, eighth, rng) -> stereo audio at SR. eq: peaking bands
+        (Hz, dB, Q). fx: more pedalboard plugins, last in the channel."""
+        self.name, self.sound, self.pan, self.gain, self.send, self.hpf = name, sound, pan, gain, send, hpf
+        self.eq, self.fx = list(eq), list(fx)
+        self.notes, self.curve, self.fader, self.lyrics = [], [], [], []
         self.keyswitch = None                  # MIDI note that selects the articulation in a sample library
         self.key = None                        # untuned percussion: every note plays this key
-        self.lyrics = []                       # sung parts: a syllable per note, in order (see words)
 
     def note(self, t, dur, pitch, vel=90):
         self.notes.append((t, dur, midi(pitch), int(np.clip(vel, 1, 127))))
@@ -310,8 +225,8 @@ class Part:
         return self.note(t, dur, 60, vel)
 
     def line(self, t, seq, vel=90, octave=0, legato=0.15):
-        """seq: [(pitch or None, eighths), ...] played from t. Notes overlap a little for legato; a repeated pitch
-        is cut short instead, or its note-off would silence the next one."""
+        """seq: [(pitch or None, eighths), ...] played from t. Notes overlap a little so legato patches connect
+        them; a repeated pitch is cut short instead, or its note-off would silence the next one."""
         for k, (p, d) in enumerate(seq):
             if p is not None:
                 same = k + 1 < len(seq) and seq[k + 1][0] == p
@@ -370,49 +285,30 @@ def _write_midi(part, path, eighth, rng):
     mf.save(path)
 
 
-def _render_vst(part, eighth, tmp, rng):
-    """A part through a VST3 instrument hosted by DawDreamer, notes and CC1 from the same MIDI file."""
-    import dawdreamer as dd
+def _render_part(part, eighth, tmp, rng):
+    if callable(part.sound):                       # a renderer of its own, such as the sung choir
+        return part.sound(part, eighth, rng)
     mid = Path(tmp) / f'{part.name}.mid'
     _write_midi(part, mid, eighth, rng)
-    eng = dd.RenderEngine(SR, 512)
-    p = eng.make_plugin_processor(part.name, part.sound.path)
-    if part.sound.state:
-        p.load_state(part.sound.state)
-    eng.load_graph([(p, [])])
-    time.sleep(part.sound.warmup)                 # sample players stream their samples in the background
-    eng.render(1.0)
-    p.load_midi(str(mid), clear_previous=True, beats=False, all_events=True)
-    eng.render(max(t + d for t, d, _, _ in part.notes) * eighth + 4)
-    return np.ascontiguousarray(eng.get_audio().T, dtype=np.float32)
-
-
-def _render_part(part, eighth, tmp, rng):
-    if isinstance(part.sound, VST):
-        return _render_vst(part, eighth, tmp, rng)
-    if callable(part.sound):                       # a renderer of its own, such as sung voices: (part, eighth, rng)
-        return part.sound(part, eighth, rng)
-    k = part.ensemble
-    copies = []
-    for i in range(k):
-        sfz = Path(part.sound)
-        if k > 1:                                  # a copy detuned from -8 to +8 cents, through an include wrapper
-            cents = round(-8 + 16 * i / (k - 1))
-            sfz = sfz.with_name(f'{sfz.stem}_tune{cents:+d}.sfz')
-            sfz.write_text(f'<global> tune={cents}\n#include "{Path(part.sound).name}"\n')
-        mid, wav = Path(tmp) / f'{part.name}-{i}.mid', Path(tmp) / f'{part.name}-{i}.wav'
-        _write_midi(part, mid, eighth, rng)
-        subprocess.run([str(_tool('sfizz_render.exe' if os.name == 'nt' else 'sfizz_render')), '--sfz', str(sfz),
-                        '--midi', str(mid), '--wav', str(wav), '--samplerate', str(SR), '--polyphony', '256'],
-                       check=True, capture_output=True)
-        x, sr = sf.read(wav, always_2d=True, dtype='float32')
-        assert sr == SR, sr
-        copies.append(_pan(x, -0.3 + 0.6 * i / (k - 1)) if k > 1 else x)
-    n = max(len(x) for x in copies)
-    out = np.zeros((n, 2), np.float32)
-    for x in copies:
-        out[:len(x)] += x
-    return out / np.sqrt(k)
+    if isinstance(part.sound, VST):                # hosted by DawDreamer, notes and CC1 from the same MIDI file
+        import dawdreamer as dd
+        eng = dd.RenderEngine(SR, 512)
+        p = eng.make_plugin_processor(part.name, part.sound.path)
+        if part.sound.state:
+            p.load_state(part.sound.state)
+        eng.load_graph([(p, [])])
+        time.sleep(part.sound.warmup)              # sample players stream their samples in the background
+        eng.render(1.0)
+        p.load_midi(str(mid), clear_previous=True, beats=False, all_events=True)
+        eng.render(max(t + d for t, d, _, _ in part.notes) * eighth + 4)
+        return np.ascontiguousarray(eng.get_audio().T, dtype=np.float32)
+    wav = Path(tmp) / f'{part.name}.wav'
+    subprocess.run([str(_tool('sfizz_render.exe' if os.name == 'nt' else 'sfizz_render')), '--sfz', str(part.sound),
+                    '--midi', str(mid), '--wav', str(wav), '--samplerate', str(SR), '--polyphony', '256'],
+                   check=True, capture_output=True)
+    x, sr = sf.read(wav, always_2d=True, dtype='float32')
+    assert sr == SR, sr
+    return x
 
 
 # ---------------------------------------------------------------- mix
@@ -473,14 +369,12 @@ def render(parts, out, eighth, tail=4.0, seed=1, report=True, master_fx=(), glue
     for p in parts:
         x = np.zeros((n, 2), np.float32)
         x[:len(raw[p.name])] = raw[p.name]
-        fx = ([pb.HighpassFilter(p.hpf)] if p.hpf else []) + [pb.PeakFilter(f, g, q) for f, g, q in p.eq] + \
-             ([pb.Compressor(*p.comp)] if p.comp else []) + p.fx
+        fx = ([pb.HighpassFilter(p.hpf)] if p.hpf else []) + [pb.PeakFilter(f, g, q) for f, g, q in p.eq] + p.fx
         y = pb.Pedalboard(fx)(x.T, SR).T if fx else x
         if p.fader:
             ts, ds = zip(*sorted(p.fader))
             y = y * undb(np.interp(np.arange(n) / SR, np.array(ts) * eighth, ds, left=0, right=0))[:, None]
-        y = _pan(y * undb(p.gain), p.pan)
-        y = y.astype(np.float32)
+        y = _pan(y * undb(p.gain), p.pan).astype(np.float32)
         sf.write(stems_dir / f'{p.name}.wav', y, SR, subtype='PCM_24')
         dry += y
         send += y * p.send

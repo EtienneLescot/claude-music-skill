@@ -1,6 +1,6 @@
 {
   "name": "music-skill",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Your coding agent composes, orchestrates and mixes music as code; a real sampled orchestra plays it, from free open libraries or BBC Symphony Orchestra Discover, with a choir sung by singing-voice models.",
   "author": {
     "name": "Etienne Lescot"

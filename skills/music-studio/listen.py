@@ -1,6 +1,6 @@
 """The studio's ear: what Claude can check in a render without hearing it.
 
-    uv run --python 3.12 --with numpy --with soundfile --with scipy --with matplotlib \
+    uv run --python 3.12 --with-requirements requirements.txt \
         python listen.py tracks/slug.wav --bar 1.636 --sections "intro:1-8,theme:9-24,climax:29-44"
 
 Prints loudness per section (BS.1770, the contrast the listener feels), peak, the energy per band, stereo width and,

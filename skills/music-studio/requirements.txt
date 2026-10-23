@@ -1,0 +1,10 @@
+dawdreamer
+pedalboard
+mido
+numpy
+soundfile
+scipy
+matplotlib
+pyyaml
+onnxruntime-directml; sys_platform == 'win32'
+onnxruntime; sys_platform != 'win32'
